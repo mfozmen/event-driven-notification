@@ -41,22 +41,45 @@ App runs at `http://localhost:8080`. All environment variables are configured in
 
 ---
 
-## Commands
+## Testing
+
+Tests use SQLite in-memory — no running Docker services needed.
 
 ```bash
-# Tests
-docker-compose exec app php vendor/bin/pest
-docker-compose exec app php vendor/bin/pest --filter=TestName
-docker-compose exec app php artisan test --testsuite=Feature
-docker-compose exec app php artisan test --testsuite=Unit
+# Run all tests
+php vendor/bin/pest
 
+# Run a single test file
+php vendor/bin/pest tests/Unit/NotificationModelTest.php
+
+# Filter by test name
+php vendor/bin/pest --filter="notification casts channel"
+
+# Run only Unit or Feature suite
+php vendor/bin/pest --testsuite=Unit
+php vendor/bin/pest --testsuite=Feature
+```
+
+Inside Docker:
+
+```bash
+docker-compose exec app php vendor/bin/pest
+```
+
+---
+
+## Code Quality
+
+```bash
 # Code style
-docker-compose exec app ./vendor/bin/pint
-docker-compose exec app ./vendor/bin/pint --test
+./vendor/bin/pint
+./vendor/bin/pint --test
 
 # Static analysis
-docker-compose exec app ./vendor/bin/phpstan analyse
+./vendor/bin/phpstan analyse
 
 # API docs
-docker-compose exec app php artisan l5-swagger:generate
+php artisan l5-swagger:generate
 ```
+
+Inside Docker prefix with `docker-compose exec app`.
