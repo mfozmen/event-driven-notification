@@ -36,67 +36,41 @@ Building a scalable event-driven notification system for the Insider One softwar
 
 ## Phase 2 — Database Schema & Models (TDD)
 
-**Goal**: Notification and related models with full migration suite.
+**Goal**: `notifications` table and `Notification` model with enums. Only what the core requirements need.
 
 ### Tests first:
 
-- Unit test: Notification model — factory, enums, fillable, casts, relationships
-- Unit test: NotificationTemplate model — variable substitution logic
+- Unit test: Notification model — factory, enums, fillable, casts
 
-### Migrations:
+### Migration:
 
-1. `notifications` table:
-   - `id` (UUID, primary)
-   - `batch_id` (UUID, nullable, indexed)
-   - `idempotency_key` (string, nullable, unique)
-   - `correlation_id` (UUID)
-   - `recipient` (string) — phone/email/device token
-   - `channel` (enum: sms, email, push)
-   - `content` (text)
-   - `subject` (string, nullable — for email)
-   - `priority` (enum: high, normal, low, default: normal)
-   - `status` (enum: pending, queued, processing, delivered, failed, retrying, permanently_failed, cancelled)
-   - `attempts` (int, default: 0)
-   - `max_attempts` (int, default: 3)
-   - `next_retry_at` (timestamp, nullable)
-   - `last_attempted_at` (timestamp, nullable)
-   - `delivered_at` (timestamp, nullable)
-   - `failed_at` (timestamp, nullable)
-   - `cancelled_at` (timestamp, nullable)
-   - `scheduled_at` (timestamp, nullable — bonus: scheduled notifications)
-   - `external_message_id` (string, nullable — from webhook.site response)
-   - `error_message` (text, nullable)
-   - `metadata` (JSON, nullable)
-   - `template_id` (UUID, nullable, FK)
-   - `template_variables` (JSON, nullable)
-   - `created_at`, `updated_at`
-   - Indexes: `status`, `channel`, `priority`, `batch_id`, `scheduled_at`, composite `(status, scheduled_at)`
-
-2. `notification_templates` table (bonus):
-   - `id` (UUID, primary)
-   - `name` (string, unique)
-   - `channel` (enum: sms, email, push)
-   - `subject_template` (string, nullable)
-   - `body_template` (text)
-   - `variables` (JSON — list of expected variable names)
-   - `created_at`, `updated_at`
-
-3. `notification_logs` table (for distributed tracing):
-   - `id` (UUID, primary)
-   - `notification_id` (UUID, FK)
-   - `correlation_id` (UUID)
-   - `event` (string — e.g., "created", "queued", "attempt_1", "delivered", "failed")
-   - `details` (JSON, nullable)
-   - `created_at`
+`notifications` table:
+- `id` (UUID, primary)
+- `batch_id` (UUID, nullable, indexed)
+- `idempotency_key` (string, nullable, unique)
+- `correlation_id` (UUID)
+- `recipient` (string) — phone/email/device token
+- `channel` (enum: sms, email, push)
+- `content` (text)
+- `priority` (enum: high, normal, low, default: normal)
+- `status` (enum: pending, queued, processing, delivered, failed, retrying, permanently_failed, cancelled)
+- `attempts` (int, default: 0)
+- `max_attempts` (int, default: 3)
+- `next_retry_at` (timestamp, nullable)
+- `last_attempted_at` (timestamp, nullable)
+- `delivered_at` (timestamp, nullable)
+- `failed_at` (timestamp, nullable)
+- `scheduled_at` (timestamp, nullable — bonus: scheduled notifications)
+- `error_message` (text, nullable)
+- `created_at`, `updated_at`
+- Indexes: `status`, `channel`, `priority`, `batch_id`
 
 ### Models:
 
-- `Notification` with enums (backed enums: `Channel`, `Priority`, `Status`)
-- `NotificationTemplate` with `render(array $variables): string` method
-- `NotificationLog`
-- Model factories for all
+- `Notification` with backed enums: `Channel`, `Priority`, `Status`
+- `NotificationFactory`
 
-**Commit**: "feat: add notification schema, models, and enums"
+**Commit**: "feat: notifications table, model, and enums"
 
 ---
 
@@ -114,8 +88,7 @@ Building a scalable event-driven notification system for the Insider One softwar
 - `GET /api/notifications` — list with filters (status, channel, date_from, date_to) + pagination
 - `GET /api/notifications/batch/{batchId}` — batch status summary
 - `DELETE /api/notifications/{id}` — cancel pending, reject if already processing/delivered
-- `POST /api/notifications` — with template_id and template_variables (bonus)
-- `POST /api/notifications` — with scheduled_at in the future (bonus)
+- `POST /api/notifications` — with scheduled_at in the future (bonus, requires Phase 8)
 
 ### Implementation:
 
@@ -150,7 +123,7 @@ Building a scalable event-driven notification system for the Insider One softwar
 - Unit test: `SendNotificationJob` — dispatches to correct channel provider
 - Unit test: Rate limiter — blocks when exceeding 100/s per channel
 - Unit test: Idempotency check — skips duplicate idempotency keys
-- Unit test: Content validation — channel-specific limits (SMS: 160 chars, Email: subject required, Push: title + body)
+- Unit test: Content validation — channel-specific limits (SMS: 160 chars, Push: title + body)
 - Feature test: Job dispatched on notification creation
 - Feature test: Priority queue routing (high → high queue, etc.)
 
@@ -165,7 +138,6 @@ Building a scalable event-driven notification system for the Insider One softwar
    - Checks rate limit (Redis token bucket via `RateLimiter`)
    - Calls provider `send()` method
    - Updates status throughout lifecycle
-   - Logs to `notification_logs`
 3. **Rate Limiter**: `ChannelRateLimiter`
    - Redis-based, 100 tokens/second per channel
    - If rate limited, release job back to queue with short delay
@@ -174,8 +146,7 @@ Building a scalable event-driven notification system for the Insider One softwar
    - Workers process `--queue=high,normal,low` (priority ordering)
 5. **Content Validator**: `NotificationContentValidator`
    - SMS: max 160 chars
-   - Email: subject required, body max 10,000 chars
-   - Push: title required, max 100 chars; body max 500 chars
+   - Push: title required, body max 500 chars
 
 **Commit**: "feat: async processing engine with priority queues, rate limiting, and idempotency"
 
@@ -254,8 +225,6 @@ Building a scalable event-driven notification system for the Insider One softwar
 - Feature test: `GET /api/metrics` — returns queue depths, rates, latency
 - Unit test: Correlation ID middleware generates/propagates UUID
 - Unit test: Structured log format includes correlation_id, channel, notification_id
-- Unit test: NotificationLog records events for tracing
-
 ### Implementation:
 
 1. **Health check**: `HealthController` — pings DB, Redis, checks queue worker
@@ -265,32 +234,58 @@ Building a scalable event-driven notification system for the Insider One softwar
    - Average delivery latency — tracked per channel
 3. **Correlation ID middleware**: Already added in Phase 3, ensure propagation to jobs
 4. **Structured logging**: Custom log formatter (JSON), includes correlation_id
-5. **Distributed tracing** (bonus): `notification_logs` table records every state transition with timestamps, viewable via `GET /api/notifications/{id}/trace`
+
+**Bonus — Distributed Tracing**:
+- Migration: `notification_logs` table (`id`, `notification_id`, `correlation_id`, `event`, `details` JSON, `created_at`)
+- `NotificationLog` model
+- Log every status transition
+- `GET /api/notifications/{id}/trace` endpoint
 
 **Commit**: "feat: observability — health check, metrics, structured logging, tracing"
 
 ---
 
-## Phase 8 — Bonus: Scheduled Notifications & Templates (TDD)
+## Phase 8 — Bonus: Scheduled Notifications & Template System (TDD)
 
-**Goal**: Future delivery scheduling and message templates with variable substitution.
+### Scheduled Notifications
 
-### Tests first:
+`scheduled_at` column already exists on `notifications` table (added in Phase 2).
 
+#### Tests first:
 - Feature test: Create notification with `scheduled_at` in future → stays `pending`, not immediately queued
 - Feature test: Scheduler picks up due notifications and queues them
+
+#### Implementation:
+- `ProcessScheduledNotifications` artisan command — queries `status=pending AND scheduled_at <= now`, dispatches to queue
+- Runs every minute via `schedule:run`
+- Add `scheduler` service to `docker-compose.yml`
+
+---
+
+### Template System
+
+#### Migration:
+`notification_templates` table:
+- `id` (UUID, primary)
+- `name` (string, unique)
+- `channel` (enum: sms, email, push)
+- `body_template` (text)
+- `variables` (JSON — list of expected variable names)
+- `created_at`, `updated_at`
+
+Add to `notifications` table:
+- `template_id` (UUID, nullable, FK → notification_templates)
+- `template_variables` (JSON, nullable)
+
+#### Tests first:
 - Unit test: Template rendering with variable substitution
 - Feature test: Create notification with `template_id` → content rendered from template
 - Feature test: CRUD for templates
 
-### Implementation:
-
-1. **Scheduler**: `ProcessScheduledNotifications` artisan command — runs every minute via `schedule:run`
-   - Queries `status=pending AND scheduled_at <= now`
-   - Dispatches to queue
-2. **Template CRUD API**:
-   - `POST /api/templates`, `GET /api/templates`, `GET /api/templates/{id}`, `PUT /api/templates/{id}`, `DELETE /api/templates/{id}`
-3. **Template rendering**: On notification creation, if `template_id` provided, render body from template + variables
+#### Implementation:
+- `NotificationTemplate` model with `render(array $variables): string`
+- Template CRUD API: `POST/GET/PUT/DELETE /api/templates`
+- On notification creation, if `template_id` provided, render content from template + variables
 
 **Commit**: "feat: scheduled notifications and template system"
 
