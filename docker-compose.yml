@@ -97,6 +97,17 @@ services:
     networks:
       - notification_network
 
+  adminer:
+    image: adminer:latest
+    container_name: notification_adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mysql
+    networks:
+      - notification_network
+
 networks:
   notification_network:
     driver: bridge
