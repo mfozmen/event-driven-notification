@@ -2,7 +2,7 @@
 set -e
 
 if [ ! -f /var/www/.env ]; then
-    cp /var/www/.env.example /var/www/.env
+    touch /var/www/.env
 fi
 
 if [ ! -d /var/www/vendor ]; then
