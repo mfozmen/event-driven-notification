@@ -1,15 +1,18 @@
 #!/bin/sh
 set -e
 
-# Copy .env if not present
 if [ ! -f /var/www/.env ]; then
     cp /var/www/.env.example /var/www/.env
 fi
 
-# Generate app key if not set
-php artisan key:generate --no-interaction --force 2>/dev/null || true
+if [ ! -d /var/www/vendor ]; then
+    COMPOSER_MEMORY_LIMIT=-1 composer install --no-scripts --no-interaction --prefer-dist
+    composer dump-autoload --optimize
+fi
 
-# Run migrations
+php artisan key:generate --no-interaction --force 2>/dev/null || true
 php artisan migrate --force --no-interaction 2>/dev/null || true
+
+chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
 exec "$@"
