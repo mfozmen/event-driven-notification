@@ -5,7 +5,22 @@
       "Bash(php --version)",
       "Bash(composer --version)",
       "Bash(docker --version)",
-      "Bash(docker compose version)"
+      "Bash(docker compose version)",
+      "Bash(composer create-project laravel/laravel . --prefer-dist --no-interaction)",
+      "Bash(composer require darkaonline/l5-swagger --no-interaction)",
+      "Bash(composer require --dev pestphp/pest pestphp/pest-plugin-laravel --no-interaction)",
+      "Bash(composer require --dev laravel/pint phpstan/phpstan larastan/larastan --no-interaction)",
+      "Bash(composer require laravel/reverb --no-interaction)",
+      "Bash(php artisan pest:install --no-interaction)",
+      "Bash(php vendor/bin/pest --init)",
+      "Bash(composer require --dev pestphp/pest pestphp/pest-plugin-laravel --with-all-dependencies --no-interaction)",
+      "Bash(php artisan key:generate)",
+      "Bash(php artisan vendor:publish --provider \"L5Swagger\\\\L5SwaggerServiceProvider\" --no-interaction)",
+      "Bash(php artisan vendor:publish --tag=l5-swagger)",
+      "Bash(php artisan vendor:publish --all)",
+      "Bash(php artisan vendor:publish --provider=\"L5Swagger\\\\L5SwaggerServiceProvider\")",
+      "Bash(php vendor/bin/pest --version)",
+      "Bash(php vendor/bin/pest)"
     ]
   }
 }
