@@ -20,7 +20,10 @@
       "Bash(php artisan vendor:publish --all)",
       "Bash(php artisan vendor:publish --provider=\"L5Swagger\\\\L5SwaggerServiceProvider\")",
       "Bash(php vendor/bin/pest --version)",
-      "Bash(php vendor/bin/pest)"
+      "Bash(php vendor/bin/pest)",
+      "Bash(composer remove:*)",
+      "Bash(php artisan:*)",
+      "Bash(composer why:*)"
     ]
   }
 }
