@@ -37,6 +37,8 @@ docker-compose up -d
 
 App runs at `http://localhost:8080`. All environment variables are configured in `docker-compose.yml` — no `.env` setup needed.
 
+**Adminer** (MySQL GUI) runs at `http://localhost:8081` — Server: `mysql`, Username: `laravel`, Password: `secret`, Database: `notification_db`.
+
 ---
 
 ## Commands
