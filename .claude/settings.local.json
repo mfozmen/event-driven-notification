@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(php --version)",
+      "Bash(composer --version)",
+      "Bash(docker --version)",
+      "Bash(docker compose version)"
+    ]
+  }
+}
