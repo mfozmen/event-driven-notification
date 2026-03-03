@@ -32,7 +32,7 @@ docker-compose exec app php artisan key:generate
 docker-compose exec app php artisan migrate
 ```
 
-App runs at `http://localhost:8080`.
+App runs at `http://localhost:8080`. Docker starts `app`, `nginx`, `mysql`, and `redis`.
 
 ---
 
@@ -67,13 +67,6 @@ php artisan serve
 ```
 
 App runs at `http://localhost:8000`.
-
-In separate terminals, start the queue worker and scheduler:
-
-```bash
-php artisan queue:work redis --queue=high,normal,low
-php artisan schedule:work
-```
 
 ---
 
