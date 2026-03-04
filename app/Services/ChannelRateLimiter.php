@@ -25,6 +25,6 @@ class ChannelRateLimiter
 
     private function buildKey(Channel $channel): string
     {
-        return 'rate_limit:' . $channel->value . ':' . time();
+        return 'rate_limit:'.$channel->value.':'.time();
     }
 }
