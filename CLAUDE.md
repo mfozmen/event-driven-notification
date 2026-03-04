@@ -27,6 +27,7 @@ Event-Driven Notification System for Insider One — a scalable REST API that pr
 - Use design patterns where they fit naturally (Strategy, Factory, etc.) — no overengineering
 - Keep methods short and single-purpose
 - Prefer readability over cleverness
+- Always run `./vendor/bin/phpstan analyse --memory-limit=512M` after implementation and fix all errors (level 6)
 
 ## User Preferences
 
