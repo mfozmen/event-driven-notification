@@ -7,11 +7,13 @@ use App\Enums\Status;
 use App\Models\Notification;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    Queue::fake();
     $this->service = new NotificationService;
 });
 
@@ -30,7 +32,7 @@ test('create returns CreateNotificationResult DTO', function () {
     expect($result->existed)->toBeFalse();
 });
 
-test('create sets status to pending', function () {
+test('create sets initial status to pending then transitions to queued via event', function () {
     $result = $this->service->create([
         'recipient' => '+905551234567',
         'channel' => 'sms',
@@ -38,7 +40,9 @@ test('create sets status to pending', function () {
         'correlation_id' => Str::orderedUuid()->toString(),
     ]);
 
-    expect($result->notification->status)->toBe(Status::PENDING);
+    $result->notification->refresh();
+
+    expect($result->notification->status)->toBe(Status::QUEUED);
 });
 
 test('create defaults priority to normal', function () {
