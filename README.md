@@ -47,23 +47,23 @@ Tests use SQLite in-memory — no running Docker services needed.
 
 ```bash
 # Run all tests
-php vendor/bin/pest
+php artisan test
 
 # Run a single test file
-php vendor/bin/pest tests/Unit/NotificationModelTest.php
+php artisan test tests/Unit/NotificationModelTest.php
 
 # Filter by test name
-php vendor/bin/pest --filter="notification casts channel"
+php artisan test --filter="notification casts channel"
 
 # Run only Unit or Feature suite
-php vendor/bin/pest --testsuite=Unit
-php vendor/bin/pest --testsuite=Feature
+php artisan test --testsuite=Unit
+php artisan test --testsuite=Feature
 ```
 
 Inside Docker:
 
 ```bash
-docker-compose exec app php vendor/bin/pest
+docker-compose exec app php artisan test
 ```
 
 ---
