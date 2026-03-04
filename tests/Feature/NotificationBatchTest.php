@@ -3,9 +3,14 @@
 use App\Enums\Status;
 use App\Models\Notification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    Queue::fake();
+});
 
 test('storeBatch creates notifications and returns batch summary', function () {
     $response = $this->postJson('/api/notifications/batch', [

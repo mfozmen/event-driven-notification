@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\Status;
 use App\Models\Notification;
+use App\Services\ChannelRateLimiter;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -15,7 +16,7 @@ class SendNotificationJob implements ShouldQueue
         public string $notificationId,
     ) {}
 
-    public function handle(): void
+    public function handle(ChannelRateLimiter $rateLimiter): void
     {
         $notification = Notification::find($this->notificationId);
 
@@ -23,14 +24,22 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
-        if (! $this->claimNotification($notification)) {
+        if ($notification->status !== Status::QUEUED) {
             return;
         }
+
+        if (! $rateLimiter->attempt($notification->channel)) {
+            $this->release(1);
+
+            return;
+        }
+
+        $this->claimNotification($notification);
     }
 
-    private function claimNotification(Notification $notification): bool
+    private function claimNotification(Notification $notification): void
     {
-        $affected = Notification::where('id', $notification->id)
+        Notification::where('id', $notification->id)
             ->where('status', Status::QUEUED)
             ->update([
                 'status' => Status::PROCESSING,
@@ -38,12 +47,6 @@ class SendNotificationJob implements ShouldQueue
                 'last_attempted_at' => now(),
             ]);
 
-        if ($affected === 0) {
-            return false;
-        }
-
         $notification->refresh();
-
-        return true;
     }
 }
