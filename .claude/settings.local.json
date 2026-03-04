@@ -26,7 +26,10 @@
       "Bash(composer why:*)",
       "Bash(php:*)",
       "Bash(mv:*)",
-      "Bash(./vendor/bin/phpstan analyse:*)"
+      "Bash(./vendor/bin/phpstan analyse:*)",
+      "Bash(composer show:*)",
+      "Bash(composer require:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }
