@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class NotificationResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'recipient' => $this->recipient,
+            'channel' => $this->channel->value,
+            'content' => $this->content,
+            'priority' => $this->priority->value,
+            'status' => $this->status->value,
+            'correlation_id' => $this->correlation_id,
+            'attempts' => $this->attempts,
+            'max_attempts' => $this->max_attempts,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+        ];
+    }
+}

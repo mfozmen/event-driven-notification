@@ -8,7 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('post notification returns 201 with correct structure', function () {
+test('store creates notification with valid data', function () {
     $payload = [
         'recipient' => '+905551234567',
         'channel' => 'sms',
@@ -41,14 +41,14 @@ test('post notification returns 201 with correct structure', function () {
     $this->assertDatabaseCount('notifications', 1);
 });
 
-test('post notification returns 422 for missing required fields', function () {
+test('store returns 422 when required fields are missing', function () {
     $response = $this->postJson('/api/notifications', []);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['recipient', 'channel', 'content']);
 });
 
-test('post notification returns 422 for invalid channel', function () {
+test('store returns 422 for invalid channel', function () {
     $payload = [
         'recipient' => '+905551234567',
         'channel' => 'telegram',
@@ -61,7 +61,7 @@ test('post notification returns 422 for invalid channel', function () {
         ->assertJsonValidationErrors(['channel']);
 });
 
-test('post notification returns 422 for invalid priority', function () {
+test('store returns 422 for invalid priority', function () {
     $payload = [
         'recipient' => '+905551234567',
         'channel' => 'sms',
@@ -75,7 +75,7 @@ test('post notification returns 422 for invalid priority', function () {
         ->assertJsonValidationErrors(['priority']);
 });
 
-test('post sms notification returns 422 when content exceeds 160 chars', function () {
+test('store returns 422 when sms content exceeds 160 chars', function () {
     $payload = [
         'recipient' => '+905551234567',
         'channel' => 'sms',
@@ -88,7 +88,7 @@ test('post sms notification returns 422 when content exceeds 160 chars', functio
         ->assertJsonValidationErrors(['content']);
 });
 
-test('post notification with idempotency key prevents duplicate', function () {
+test('store returns existing notification when idempotency key is duplicate', function () {
     $payload = [
         'recipient' => '+905551234567',
         'channel' => 'sms',
@@ -106,7 +106,7 @@ test('post notification with idempotency key prevents duplicate', function () {
     expect($first->json('data.id'))->toBe($second->json('data.id'));
 });
 
-test('post notification defaults priority to normal', function () {
+test('store defaults priority to normal when not provided', function () {
     $payload = [
         'recipient' => '+905551234567',
         'channel' => 'sms',
