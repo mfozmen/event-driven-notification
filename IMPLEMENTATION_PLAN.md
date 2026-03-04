@@ -36,7 +36,11 @@ If Redis crashes, a recovery command re-queues notifications stuck in `queued` s
 
 - ✅ Phase 1 — Docker Compose (app, nginx, mysql, redis, adminer)
 - ✅ Phase 2 — Migration, model, enums, factory, 5 passing tests
-- 🔲 Phase 3a — Starting now
+- ✅ Phase 3a — Create & read single notification
+- ✅ Phase 3b — List notifications with filtering and cursor pagination
+- ✅ Phase 3c — Cancel notification
+- ✅ Phase 3d — Batch create & batch status
+- 🔲 Phase 4a — Starting now
 
 ---
 
@@ -132,16 +136,19 @@ Shared infrastructure built here (reused in all later phases):
 
 ---
 
-## Phase 4 — Processing Engine (TDD)
+## Phase 4a — Horizon Setup & Event/Listener/Job Chain (TDD)
 
-**Goal**: Async queue processing with priorities and rate limiting via Laravel Horizon.
+**Goal**: Infrastructure only. Notification creation triggers async processing with correct priority routing. The job does NOT call channel providers — it only handles status transitions and queue mechanics. Provider integration is added in Phase 5.
+
+### Why split Phase 4:
+Phase 4 was too large — Horizon setup, event/listener/job chain, and rate limiting all at once makes debugging hard if something breaks. Splitting lets us verify each layer independently.
 
 ### Tests first:
-- Unit: `SendNotificationJob` dispatches to correct channel provider
-- Unit: Rate limiter blocks when exceeding 100/s per channel (sliding window)
-- Unit: Idempotency check — skips if already processed
-- Feature: Job dispatched on notification creation (event → listener → job)
-- Feature: Priority queue routing — high priority notification goes to `high` queue
+- Unit: `SendNotificationJob` performs atomic status transition (`queued` → `processing`)
+- Unit: Idempotency — job skips if notification status is not `queued`
+- Feature: Creating a notification dispatches `SendNotificationJob`
+- Feature: High priority notification is dispatched to `high` queue
+- Feature: Normal priority notification goes to `normal` queue
 
 ### Implementation:
 
@@ -151,26 +158,43 @@ Shared infrastructure built here (reused in all later phases):
    - Add `horizon` service to `docker-compose.yml`: `php artisan horizon`
 
 2. **Event → Listener → Job chain**:
-   - `NotificationCreated` event (already stubbed in Phase 3a)
+   - `NotificationCreated` event
    - `QueueNotificationListener` — sets status to `queued`, dispatches `SendNotificationJob` to appropriate priority queue
-   - `SendNotificationJob` — atomic status claim (`queued` → `processing`), checks rate limit, calls provider
+   - `SendNotificationJob` — atomic status claim (`queued` → `processing`), but does NOT call the channel provider yet. Just updates status. Provider integration comes in Phase 5.
+   - Idempotency check in job — skip if notification is not in `queued` status
 
-3. **Rate Limiter**: `ChannelRateLimiter` — Redis sliding window counter
-   - Key: `rate_limit:{channel}:{current_second}`
-   - `INCR` + `EXPIRE 2`
-   - If count > 100, release job back to queue with 1s delay: `$this->release(1)`
-
-4. **Queue Configuration**:
+3. **Queue Configuration**:
    - Three queues: `high`, `normal`, `low`
    - Horizon workers process `--queue=high,normal,low` (priority ordering)
 
-**Commit**: "feat: processing engine with Horizon, priority queues, and rate limiting"
+**Commit**: "feat: Horizon setup with event-driven job dispatching and priority queues"
+
+---
+
+## Phase 4b — Rate Limiter (TDD)
+
+**Goal**: Channel-based rate limiting using Redis sliding window counter.
+
+### Tests first:
+- Unit: `ChannelRateLimiter` allows requests under limit
+- Unit: `ChannelRateLimiter` blocks when limit exceeded
+- Unit: Counter resets after window expires
+- Feature: Rate-limited job is released back to queue
+
+### Implementation:
+
+1. **`ChannelRateLimiter`** service — Redis sliding window (`INCR` + `EXPIRE`)
+   - Key pattern: `rate_limit:{channel}:{current_second}`, TTL: 2 seconds
+   - Threshold: 100 messages per second per channel
+2. **Integrate into `SendNotificationJob`** — check rate limit before processing, if exceeded call `$this->release(1)` to retry after 1 second
+
+**Commit**: "feat: Redis sliding window rate limiter per channel"
 
 ---
 
 ## Phase 5 — Channel Providers & Delivery (TDD)
 
-**Goal**: Strategy pattern for channel delivery, all hitting webhook.site.
+**Goal**: Strategy pattern for channel delivery, all hitting webhook.site. Wire providers into the existing `SendNotificationJob`.
 
 ### Tests first:
 - Unit: `NotificationChannelInterface` contract
@@ -191,6 +215,7 @@ Shared infrastructure built here (reused in all later phases):
 3. **DTO**: `DeliveryResult` — success/failure, external messageId, error message
 4. **Factory**: `ChannelProviderFactory` — resolves provider by `Channel` enum
 5. **Config**: `config/notifications.php` — webhook URL, per-channel settings
+6. **Wire into `SendNotificationJob`** — after atomic status claim and rate limit check, call the resolved provider's `send()` method. Update status to `delivered` on success, `failed` on failure.
 
 **Commit**: "feat: channel providers with strategy pattern and webhook.site integration"
 
