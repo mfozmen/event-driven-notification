@@ -4,11 +4,13 @@ use App\Enums\Status;
 use App\Models\Notification;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    Queue::fake();
     $this->service = new NotificationService;
 });
 
@@ -50,7 +52,7 @@ test('createBatch assigns same batch_id to all notifications', function () {
     expect($notifications->pluck('batch_id')->unique())->toHaveCount(1);
 });
 
-test('createBatch sets all notifications to pending status', function () {
+test('createBatch transitions all notifications to queued via event', function () {
     $result = $this->service->createBatch([
         [
             'recipient' => '+905551234567',
@@ -61,7 +63,7 @@ test('createBatch sets all notifications to pending status', function () {
 
     $notification = Notification::where('batch_id', $result->batchId)->first();
 
-    expect($notification->status)->toBe(Status::PENDING);
+    expect($notification->status)->toBe(Status::QUEUED);
 });
 
 test('createBatch shares correlation_id across all notifications', function () {

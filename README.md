@@ -8,7 +8,7 @@ A scalable notification system built with Laravel 11 that processes and delivers
 
 - **Framework**: PHP Laravel 11
 - **Database**: MySQL 8
-- **Queue / Cache**: Redis
+- **Queue / Cache**: Redis + Laravel Horizon
 - **API Docs**: Swagger / OpenAPI (L5-Swagger)
 - **Testing**: Pest 3
 - **Code Quality**: Laravel Pint, PHPStan (Larastan level 6)
@@ -115,5 +115,11 @@ Inside Docker prefix with `docker-compose exec app`.
 **Batch chunking** — Batch inserts are chunked into groups of 100 to avoid exceeding database packet limits and memory pressure on large batches (up to 1000).
 
 **Separate batch controller** — `BatchNotificationController` handles batch store and batch status, keeping `NotificationController` focused on single notification CRUD. Single Responsibility Principle.
+
+**Event-driven processing** — `NotificationCreated` event fires on creation, `QueueNotificationListener` sets status to `queued` and dispatches `SendNotificationJob` to the appropriate priority queue. Decouples API response from async processing.
+
+**Priority queues** — Three Redis queues (`high`, `normal`, `low`) managed by Laravel Horizon. Workers process in priority order. Notification priority maps directly to queue name.
+
+**Atomic status claim** — `SendNotificationJob` uses `UPDATE ... WHERE status = 'queued'` to atomically claim a notification. If affected rows = 0, another worker already claimed it — prevents duplicate processing.
 
 **UUID v7 (ordered)** — Used `Str::orderedUuid()` for primary keys to avoid InnoDB clustered index fragmentation with random UUIDs.

@@ -34,7 +34,7 @@ test('store creates notification with valid data', function () {
         ->assertJsonPath('data.channel', 'sms')
         ->assertJsonPath('data.content', 'Hello, world!')
         ->assertJsonPath('data.priority', 'high')
-        ->assertJsonPath('data.status', 'pending');
+        ->assertJsonPath('data.status', 'queued');
 
     $this->assertDatabaseCount('notifications', 1);
 });

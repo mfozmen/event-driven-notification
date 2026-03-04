@@ -7,6 +7,7 @@ use App\DTOs\CreateBatchResult;
 use App\DTOs\CreateNotificationResult;
 use App\Enums\Priority;
 use App\Enums\Status;
+use App\Events\NotificationCreated;
 use App\Models\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -62,6 +63,8 @@ class NotificationService
             'idempotency_key' => $data['idempotency_key'] ?? null,
         ]);
 
+        NotificationCreated::dispatch($notification);
+
         return new CreateNotificationResult($notification, existed: false);
     }
 
@@ -88,6 +91,8 @@ class NotificationService
 
             Notification::insert($records);
         });
+
+        $this->dispatchBatchEvents($batchId);
 
         return new CreateBatchResult($batchId, count($notifications));
     }
@@ -163,6 +168,12 @@ class NotificationService
         $notifications->pop();
 
         return $notifications->last()?->id;
+    }
+
+    private function dispatchBatchEvents(string $batchId): void
+    {
+        Notification::where('batch_id', $batchId)
+            ->each(fn (Notification $notification) => NotificationCreated::dispatch($notification));
     }
 
     private function findByIdempotencyKey(?string $key): ?Notification
