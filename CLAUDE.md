@@ -21,6 +21,13 @@ Event-Driven Notification System for Insider One — a scalable REST API that pr
 
 **Test-Driven Development (TDD)** — write tests first, run them (they fail), then implement to make them pass.
 
+## Code Quality Principles
+
+- Write clean, low-complexity methods — extract method refactoring early
+- Use design patterns where they fit naturally (Strategy, Factory, etc.) — no overengineering
+- Keep methods short and single-purpose
+- Prefer readability over cleverness
+
 ## User Preferences
 
 - Full control over the code — do not add anything not explicitly asked for

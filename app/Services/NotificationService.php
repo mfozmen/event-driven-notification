@@ -11,12 +11,10 @@ class NotificationService
 {
     public function create(array $data): array
     {
-        if (! empty($data['idempotency_key'])) {
-            $existing = Notification::where('idempotency_key', $data['idempotency_key'])->first();
+        $existing = $this->findByIdempotencyKey($data['idempotency_key'] ?? null);
 
-            if ($existing) {
-                return ['notification' => $existing, 'existed' => true];
-            }
+        if ($existing) {
+            return ['notification' => $existing, 'existed' => true];
         }
 
         $notification = Notification::create([
@@ -30,5 +28,14 @@ class NotificationService
         ]);
 
         return ['notification' => $notification, 'existed' => false];
+    }
+
+    private function findByIdempotencyKey(?string $key): ?Notification
+    {
+        if (! $key) {
+            return null;
+        }
+
+        return Notification::where('idempotency_key', $key)->first();
     }
 }
