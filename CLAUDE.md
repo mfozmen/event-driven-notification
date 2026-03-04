@@ -25,7 +25,14 @@ Event-Driven Notification System for Insider One — a scalable REST API that pr
 
 Every phase must include BOTH unit tests and feature tests. Unit tests cover isolated logic (services, DTOs, enums, strategies, value objects). Feature tests cover HTTP endpoints and full request lifecycle. Never skip unit tests — if a service method has logic, it needs a unit test.
 
-Extract repeated literals into file-level constants to avoid duplication warnings (e.g., `const TEST_RECIPIENT = '+905551234567';`).
+### Testing Conventions
+
+- Never use global `const` in test files. Use `beforeEach` to set up shared data (`$this->service`, `$this->recipient`, etc.)
+- Use hardcoded values inline when a test only uses a value once. Only extract to `beforeEach` when the same value is used in 3+ tests
+- Factory is the default for creating models in tests. Use `Notification::factory()->create([overrides])` rather than manually building arrays
+- For API test payloads (POST body), use inline hardcoded values — they make each test self-contained and readable
+- Never depend on constants from other test files
+- Keep test files self-contained — a test file should be fully understandable without looking at any other test file
 
 ## Code Quality Principles
 

@@ -8,17 +8,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-const TEST_RECIPIENT = '+905551234567';
-
 test('store creates notification with valid data', function () {
-    $payload = [
-        'recipient' => TEST_RECIPIENT,
+    $response = $this->postJson('/api/notifications', [
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello, world!',
         'priority' => 'high',
-    ];
-
-    $response = $this->postJson('/api/notifications', $payload);
+    ]);
 
     $response->assertStatus(201)
         ->assertJsonStructure([
@@ -34,7 +30,7 @@ test('store creates notification with valid data', function () {
                 'updated_at',
             ],
         ])
-        ->assertJsonPath('data.recipient', TEST_RECIPIENT)
+        ->assertJsonPath('data.recipient', '+905551234567')
         ->assertJsonPath('data.channel', 'sms')
         ->assertJsonPath('data.content', 'Hello, world!')
         ->assertJsonPath('data.priority', 'high')
@@ -44,34 +40,28 @@ test('store creates notification with valid data', function () {
 });
 
 test('store returns correlation id in response header', function () {
-    $payload = [
-        'recipient' => TEST_RECIPIENT,
+    $response = $this->postJson('/api/notifications', [
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
-    ];
-
-    $response = $this->postJson('/api/notifications', $payload);
+    ]);
 
     $response->assertStatus(201)
         ->assertHeader('X-Correlation-ID');
 });
 
 test('store uses correlation id from request header', function () {
-    $correlationId = 'my-custom-correlation-id';
-
-    $payload = [
-        'recipient' => TEST_RECIPIENT,
+    $response = $this->postJson('/api/notifications', [
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
-    ];
-
-    $response = $this->postJson('/api/notifications', $payload, [
-        'X-Correlation-ID' => $correlationId,
+    ], [
+        'X-Correlation-ID' => 'my-custom-correlation-id',
     ]);
 
     $response->assertStatus(201)
-        ->assertHeader('X-Correlation-ID', $correlationId)
-        ->assertJsonPath('data.correlation_id', $correlationId);
+        ->assertHeader('X-Correlation-ID', 'my-custom-correlation-id')
+        ->assertJsonPath('data.correlation_id', 'my-custom-correlation-id');
 });
 
 test('store returns 422 when required fields are missing', function () {
@@ -82,40 +72,34 @@ test('store returns 422 when required fields are missing', function () {
 });
 
 test('store returns 422 for invalid channel', function () {
-    $payload = [
-        'recipient' => TEST_RECIPIENT,
+    $response = $this->postJson('/api/notifications', [
+        'recipient' => '+905551234567',
         'channel' => 'telegram',
         'content' => 'Hello',
-    ];
-
-    $response = $this->postJson('/api/notifications', $payload);
+    ]);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['channel']);
 });
 
 test('store returns 422 for invalid priority', function () {
-    $payload = [
-        'recipient' => TEST_RECIPIENT,
+    $response = $this->postJson('/api/notifications', [
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'priority' => 'urgent',
-    ];
-
-    $response = $this->postJson('/api/notifications', $payload);
+    ]);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['priority']);
 });
 
 test('store returns 422 when sms content exceeds 160 chars', function () {
-    $payload = [
-        'recipient' => TEST_RECIPIENT,
+    $response = $this->postJson('/api/notifications', [
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => str_repeat('a', 161),
-    ];
-
-    $response = $this->postJson('/api/notifications', $payload);
+    ]);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['content']);
@@ -123,7 +107,7 @@ test('store returns 422 when sms content exceeds 160 chars', function () {
 
 test('store returns existing notification when idempotency key is duplicate', function () {
     $payload = [
-        'recipient' => TEST_RECIPIENT,
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'idempotency_key' => 'unique-key-123',
@@ -140,13 +124,11 @@ test('store returns existing notification when idempotency key is duplicate', fu
 });
 
 test('store defaults priority to normal when not provided', function () {
-    $payload = [
-        'recipient' => TEST_RECIPIENT,
+    $response = $this->postJson('/api/notifications', [
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
-    ];
-
-    $response = $this->postJson('/api/notifications', $payload);
+    ]);
 
     $response->assertStatus(201)
         ->assertJsonPath('data.priority', 'normal');
