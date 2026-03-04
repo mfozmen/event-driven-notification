@@ -29,7 +29,6 @@ services:
 
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
-      SESSION_DRIVER: redis
 
       LOG_CHANNEL: stack
       LOG_LEVEL: debug
