@@ -9,6 +9,9 @@ use Illuminate\Validation\Rule;
 
 class StoreNotificationRequest extends FormRequest
 {
+    /**
+     * @return array<string, array<int, mixed>>
+     */
     public function rules(): array
     {
         $rules = [

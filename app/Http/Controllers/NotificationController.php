@@ -7,6 +7,8 @@ use App\Http\Requests\StoreNotificationRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
 use App\Services\NotificationService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class NotificationController extends Controller
 {
@@ -14,7 +16,7 @@ class NotificationController extends Controller
         private NotificationService $notificationService,
     ) {}
 
-    public function index(ListNotificationsRequest $request)
+    public function index(ListNotificationsRequest $request): AnonymousResourceCollection
     {
         $result = $this->notificationService->list($request->validated());
 
@@ -27,7 +29,7 @@ class NotificationController extends Controller
             ]);
     }
 
-    public function store(StoreNotificationRequest $request)
+    public function store(StoreNotificationRequest $request): JsonResponse
     {
         $data = array_merge($request->validated(), [
             'correlation_id' => $request->attributes->get('correlation_id'),
@@ -42,7 +44,7 @@ class NotificationController extends Controller
             ->setStatusCode($statusCode);
     }
 
-    public function show(Notification $notification)
+    public function show(Notification $notification): NotificationResource
     {
         return new NotificationResource($notification);
     }

@@ -7,14 +7,19 @@ use App\Enums\Priority;
 use App\Enums\Status;
 use App\Models\Notification;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 class NotificationService
 {
     private const DEFAULT_PER_PAGE = 15;
 
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
     public function list(array $filters): array
     {
-        $perPage = $filters['per_page'] ?? self::DEFAULT_PER_PAGE;
+        $perPage = (int) ($filters['per_page'] ?? self::DEFAULT_PER_PAGE);
 
         $query = Notification::query()
             ->orderBy('id', 'desc');
@@ -33,6 +38,9 @@ class NotificationService
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function create(array $data): CreateNotificationResult
     {
         $existing = $this->findByIdempotencyKey($data['idempotency_key'] ?? null);
@@ -54,6 +62,10 @@ class NotificationService
         return new CreateNotificationResult($notification, existed: false);
     }
 
+    /**
+     * @param  Builder<Notification>  $query
+     * @param  array<string, mixed>  $filters
+     */
     private function applyFilters(Builder $query, array $filters): void
     {
         $query
@@ -63,6 +75,9 @@ class NotificationService
             ->when(isset($filters['date_to']), fn (Builder $q) => $q->where('created_at', '<=', $filters['date_to']));
     }
 
+    /**
+     * @param  Builder<Notification>  $query
+     */
     private function applyCursor(Builder $query, ?string $cursor): void
     {
         if ($cursor) {
@@ -70,7 +85,10 @@ class NotificationService
         }
     }
 
-    private function resolveNextCursor($notifications, int $perPage): ?string
+    /**
+     * @param  Collection<int, Notification>  $notifications
+     */
+    private function resolveNextCursor(Collection $notifications, int $perPage): ?string
     {
         if ($notifications->count() <= $perPage) {
             return null;
@@ -78,7 +96,7 @@ class NotificationService
 
         $notifications->pop();
 
-        return $notifications->last()->id;
+        return $notifications->last()?->id;
     }
 
     private function findByIdempotencyKey(?string $key): ?Notification
