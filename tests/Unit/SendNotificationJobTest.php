@@ -115,6 +115,25 @@ test('handle sets status to failed when provider returns failure', function () {
     expect($notification->attempts)->toBe(1);
 });
 
+test('handle sets status to failed when provider throws unexpected exception', function () {
+    $provider = Mockery::mock(NotificationChannelInterface::class);
+    $provider->shouldReceive('send')->andThrow(new \RuntimeException('Unexpected failure'));
+
+    $factory = Mockery::mock(ChannelProviderFactory::class);
+    $factory->shouldReceive('resolve')->andReturn($provider);
+
+    $notification = Notification::factory()->create(['status' => Status::QUEUED]);
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $factory);
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::FAILED);
+    expect($notification->failed_at)->not->toBeNull();
+    expect($notification->error_message)->toBe('Unexpected failure');
+});
+
 test('handle increments attempts and sets last_attempted_at on processing', function () {
     $notification = Notification::factory()->create([
         'status' => Status::QUEUED,
