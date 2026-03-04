@@ -62,6 +62,26 @@ class NotificationService
         return new CreateNotificationResult($notification, existed: false);
     }
 
+    public function cancel(Notification $notification): Notification
+    {
+        if (! $this->isCancellable($notification)) {
+            abort(409, 'Notification cannot be cancelled in its current status.');
+        }
+
+        $notification->update(['status' => Status::CANCELLED]);
+
+        return $notification;
+    }
+
+    private function isCancellable(Notification $notification): bool
+    {
+        return in_array($notification->status, [
+            Status::PENDING,
+            Status::QUEUED,
+            Status::RETRYING,
+        ]);
+    }
+
     /**
      * @param  Builder<Notification>  $query
      * @param  array<string, mixed>  $filters

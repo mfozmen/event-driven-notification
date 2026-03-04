@@ -48,4 +48,11 @@ class NotificationController extends Controller
     {
         return new NotificationResource($notification);
     }
+
+    public function cancel(Notification $notification): NotificationResource
+    {
+        $notification = $this->notificationService->cancel($notification);
+
+        return new NotificationResource($notification);
+    }
 }
