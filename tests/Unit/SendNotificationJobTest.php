@@ -3,15 +3,21 @@
 use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
+use App\Services\ChannelRateLimiter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->rateLimiter = Mockery::mock(ChannelRateLimiter::class);
+    $this->rateLimiter->shouldReceive('attempt')->andReturn(true);
+});
 
 test('handle performs atomic status transition from queued to processing', function () {
     $notification = Notification::factory()->create(['status' => Status::QUEUED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle();
+    $job->handle($this->rateLimiter);
 
     $notification->refresh();
 
@@ -22,7 +28,7 @@ test('handle skips notification that is not in queued status', function () {
     $notification = Notification::factory()->create(['status' => Status::PROCESSING]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle();
+    $job->handle($this->rateLimiter);
 
     $notification->refresh();
 
@@ -33,7 +39,7 @@ test('handle skips notification that is already delivered', function () {
     $notification = Notification::factory()->create(['status' => Status::DELIVERED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle();
+    $job->handle($this->rateLimiter);
 
     $notification->refresh();
 
@@ -44,7 +50,7 @@ test('handle skips notification that was cancelled', function () {
     $notification = Notification::factory()->create(['status' => Status::CANCELLED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle();
+    $job->handle($this->rateLimiter);
 
     $notification->refresh();
 
@@ -53,7 +59,7 @@ test('handle skips notification that was cancelled', function () {
 
 test('handle gracefully handles non-existent notification', function () {
     $job = new SendNotificationJob('non-existent-id');
-    $job->handle();
+    $job->handle($this->rateLimiter);
 
     expect(true)->toBeTrue();
 });
@@ -66,7 +72,7 @@ test('handle increments attempts and sets last_attempted_at on processing', func
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle();
+    $job->handle($this->rateLimiter);
 
     $notification->refresh();
 

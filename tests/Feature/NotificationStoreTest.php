@@ -5,8 +5,13 @@ use App\Enums\Priority;
 use App\Enums\Status;
 use App\Models\Notification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    Queue::fake();
+});
 
 test('store creates notification with valid data', function () {
     $response = $this->postJson('/api/notifications', [

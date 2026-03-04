@@ -122,4 +122,6 @@ Inside Docker prefix with `docker-compose exec app`.
 
 **Atomic status claim** — `SendNotificationJob` uses `UPDATE ... WHERE status = 'queued'` to atomically claim a notification. If affected rows = 0, another worker already claimed it — prevents duplicate processing.
 
+**Rate limiting** — 100 messages/second/channel using Redis `INCR` + `EXPIRE` sliding window. Each channel is tracked independently. When the limit is exceeded, the job is released back to the queue with a 1-second delay.
+
 **UUID v7 (ordered)** — Used `Str::orderedUuid()` for primary keys to avoid InnoDB clustered index fragmentation with random UUIDs.
