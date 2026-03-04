@@ -52,6 +52,15 @@ Every phase must include BOTH unit tests and feature tests. Unit tests cover iso
 - Never group multiple logical steps into one — always pause between them for a commit
 - No `.env` file — all environment variables live in `docker-compose.yml`
 
+## Post-Phase Checklist
+
+After completing each phase, before moving on:
+
+1. All tests pass (`php artisan test`)
+2. PHPStan passes (`./vendor/bin/phpstan analyse --memory-limit=512M`)
+3. **Update README.md** — add new endpoints, design decisions, any new setup instructions
+4. Pause for user commit
+
 ## Commands
 
 ```bash
