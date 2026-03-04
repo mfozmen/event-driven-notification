@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Channels\ChannelProviderFactory;
 use App\Enums\Status;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
@@ -16,7 +17,7 @@ class SendNotificationJob implements ShouldQueue
         public string $notificationId,
     ) {}
 
-    public function handle(ChannelRateLimiter $rateLimiter): void
+    public function handle(ChannelRateLimiter $rateLimiter, ChannelProviderFactory $factory): void
     {
         $notification = Notification::find($this->notificationId);
 
@@ -34,12 +35,30 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
-        $this->claimNotification($notification);
+        if (! $this->claimNotification($notification)) {
+            return;
+        }
+
+        $provider = $factory->resolve($notification->channel);
+        $result = $provider->send($notification);
+
+        if ($result->success) {
+            $notification->update([
+                'status' => Status::DELIVERED,
+                'delivered_at' => now(),
+            ]);
+        } else {
+            $notification->update([
+                'status' => Status::FAILED,
+                'failed_at' => now(),
+                'error_message' => $result->errorMessage,
+            ]);
+        }
     }
 
-    private function claimNotification(Notification $notification): void
+    private function claimNotification(Notification $notification): bool
     {
-        Notification::where('id', $notification->id)
+        $affectedRows = Notification::where('id', $notification->id)
             ->where('status', Status::QUEUED)
             ->update([
                 'status' => Status::PROCESSING,
@@ -47,6 +66,12 @@ class SendNotificationJob implements ShouldQueue
                 'last_attempted_at' => now(),
             ]);
 
+        if ($affectedRows === 0) {
+            return false;
+        }
+
         $notification->refresh();
+
+        return true;
     }
 }

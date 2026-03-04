@@ -124,4 +124,6 @@ Inside Docker prefix with `docker-compose exec app`.
 
 **Rate limiting** — 100 messages/second/channel using Redis `INCR` + `EXPIRE` sliding window. Each channel is tracked independently. When the limit is exceeded, the job is released back to the queue with a 1-second delay.
 
+**Strategy pattern for channel providers** — `NotificationChannelInterface` defines the contract. `AbstractChannelProvider` handles common HTTP logic (POST to webhook.site, response parsing, timeout handling). `SmsProvider`, `EmailProvider`, `PushProvider` extend it and override `formatPayload()`. `ChannelProviderFactory` resolves the correct provider by `Channel` enum. Non-retryable errors (4xx) vs retryable errors (5xx, timeouts) are distinguished in the `DeliveryResult` DTO.
+
 **UUID v7 (ordered)** — Used `Str::orderedUuid()` for primary keys to avoid InnoDB clustered index fragmentation with random UUIDs.
