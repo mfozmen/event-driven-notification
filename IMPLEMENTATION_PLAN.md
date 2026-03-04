@@ -74,43 +74,82 @@ Building a scalable event-driven notification system for the Insider One softwar
 
 ---
 
-## Phase 3 — Notification Management API (TDD)
+## Phase 3a — Create & Read Single Notification (TDD)
 
-**Goal**: Full CRUD API with validation, filtering, pagination.
+**Goal**: `POST /api/notifications` (single) and `GET /api/notifications/{id}`.
 
-### Tests first (Pest Feature tests):
+Shared infrastructure built here (reused in all later phases):
+- `NotificationController`
+- `NotificationResource`
+- `NotificationService`
+- `CorrelationIdMiddleware`
 
-- `POST /api/notifications` — single creation with all fields
-- `POST /api/notifications` — batch creation (array of notifications, up to 1000)
-- `POST /api/notifications` — validation errors (missing fields, invalid channel, etc.)
-- `POST /api/notifications` — idempotency key dedup
-- `GET /api/notifications/{id}` — found, not found
-- `GET /api/notifications` — list with filters (status, channel, date_from, date_to) + pagination
-- `GET /api/notifications/batch/{batchId}` — batch status summary
-- `DELETE /api/notifications/{id}` — cancel pending, reject if already processing/delivered
-- `POST /api/notifications` — with scheduled_at in the future (bonus, requires Phase 8)
+### Tests first:
+- `POST /api/notifications` — successful creation, returns notification
+- `POST /api/notifications` — validation errors (missing recipient, invalid channel, etc.)
+- `POST /api/notifications` — idempotency key dedup (same key returns existing notification)
+- `GET /api/notifications/{id}` — found
+- `GET /api/notifications/{id}` — not found (404)
 
 ### Implementation:
+1. `CorrelationIdMiddleware` — generates/propagates `X-Correlation-ID` header
+2. `StoreNotificationRequest` — validates single payload
+3. `NotificationService::create()` — persists notification, fires `NotificationCreated` event (stubbed for now)
+4. `NotificationResource` — shapes JSON response
+5. `NotificationController::store()` and `show()`
+6. Routes in `routes/api.php`
 
-1. **Routes**: `routes/api.php`
-2. **Controller**: `NotificationController` (resourceful)
-   - `store()` — handles both single and batch (detects array)
-   - `show()` — by ID
-   - `index()` — filtered list
-   - `destroy()` — cancel
-   - `batchStatus()` — batch summary
-3. **Form Requests**:
-   - `StoreNotificationRequest` — validates single + batch payloads
-   - `ListNotificationRequest` — validates filter params
-4. **Resources**:
-   - `NotificationResource` / `NotificationCollection` — JSON:API response formatting
-5. **Service**:
-   - `NotificationService` — business logic layer (create, cancel, batch create)
-   - Dispatches `NotificationCreated` event on creation
-6. **Middleware**:
-   - `CorrelationIdMiddleware` — generates/propagates `X-Correlation-ID` header
+---
 
-**Commit**: "feat: notification management API with full CRUD and batch support"
+## Phase 3b — List Notifications (TDD)
+
+**Goal**: `GET /api/notifications` with filters and pagination.
+
+### Tests first:
+- Returns paginated list
+- Filter by `status`
+- Filter by `channel`
+- Filter by `date_from` and `date_to`
+- Multiple filters combined
+
+### Implementation:
+1. `ListNotificationsRequest` — validates filter params
+2. `NotificationController::index()`
+
+---
+
+## Phase 3c — Cancel Notification (TDD)
+
+**Goal**: `DELETE /api/notifications/{id}`.
+
+### Tests first:
+- Cancel a `pending` notification → status becomes `cancelled`
+- Cancel a `queued` notification → status becomes `cancelled`
+- Reject cancel if status is `processing`, `delivered`, or `failed` (409)
+- Not found (404)
+
+### Implementation:
+1. `NotificationService::cancel()`
+2. `NotificationController::destroy()`
+
+---
+
+## Phase 3d — Batch Create & Batch Status (TDD)
+
+**Goal**: `POST /api/notifications` (array payload) and `GET /api/notifications/batch/{batchId}`.
+
+### Tests first:
+- Batch create — array of up to 1000 notifications, returns `batch_id` + count summary
+- Batch create — exceeds 1000 limit (422)
+- Batch create — validation error in one item
+- `GET /api/notifications/batch/{batchId}` — returns total, pending, queued, delivered, failed counts
+- `GET /api/notifications/batch/{batchId}` — not found (404)
+
+### Implementation:
+1. `StoreBatchNotificationRequest` — validates array payload, max 1000
+2. `NotificationService::createBatch()` — bulk insert, single `batch_id`
+3. `NotificationController::store()` — detects array vs single payload
+4. `NotificationController::batchStatus()`
 
 ---
 
