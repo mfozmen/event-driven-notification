@@ -38,11 +38,11 @@ Event-Driven Notification System for Insider One — a scalable REST API that pr
 docker-compose up -d
 
 # Tests (SQLite in-memory, no Docker needed)
-php vendor/bin/pest
-php vendor/bin/pest tests/Unit/NotificationModelTest.php
-php vendor/bin/pest --filter="test name"
-php vendor/bin/pest --testsuite=Unit
-php vendor/bin/pest --testsuite=Feature
+php artisan test
+php artisan test tests/Unit/NotificationModelTest.php
+php artisan test --filter="test name"
+php artisan test --testsuite=Unit
+php artisan test --testsuite=Feature
 
 # Inside Docker prefix with: docker-compose exec app
 
