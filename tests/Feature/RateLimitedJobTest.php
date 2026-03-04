@@ -1,5 +1,8 @@
 <?php
 
+use App\Channels\ChannelProviderFactory;
+use App\Contracts\NotificationChannelInterface;
+use App\DTOs\DeliveryResult;
 use App\Enums\Channel;
 use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
@@ -9,6 +12,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $provider = Mockery::mock(NotificationChannelInterface::class);
+    $provider->shouldReceive('send')->andReturn(DeliveryResult::successful('mock-msg-id'));
+
+    $this->factory = Mockery::mock(ChannelProviderFactory::class);
+    $this->factory->shouldReceive('resolve')->andReturn($provider);
+});
 
 test('job is released back to queue when rate limited', function () {
     $notification = Notification::factory()->create([
@@ -25,7 +36,7 @@ test('job is released back to queue when rate limited', function () {
         ->makePartial();
     $job->shouldReceive('release')->with(1)->once();
 
-    $job->handle($limiter);
+    $job->handle($limiter, $this->factory);
 
     $notification->refresh();
 
@@ -44,9 +55,9 @@ test('job processes notification when rate limit allows', function () {
         ->andReturn(true);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($limiter);
+    $job->handle($limiter, $this->factory);
 
     $notification->refresh();
 
-    expect($notification->status)->toBe(Status::PROCESSING);
+    expect($notification->status)->toBe(Status::DELIVERED);
 });
