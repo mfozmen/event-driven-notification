@@ -93,6 +93,7 @@ Inside Docker prefix with `docker-compose exec app`.
 | `POST` | `/api/notifications/batch` | Create batch (up to 1000) |
 | `GET` | `/api/notifications` | List with filters + cursor pagination |
 | `GET` | `/api/notifications/{id}` | Get notification by ID |
+| `GET` | `/api/notifications/batch/{batchId}` | Get batch status summary |
 | `PATCH` | `/api/notifications/{id}/cancel` | Cancel a notification |
 
 ---
@@ -110,5 +111,9 @@ Inside Docker prefix with `docker-compose exec app`.
 **Correlation ID from middleware** — Generated once per request in `CorrelationIdMiddleware`, shared across all notifications in the same request (important for batch). Enables distributed tracing.
 
 **Idempotency key** — Client-provided key to prevent duplicate notifications on network retries. Duplicate request returns `200` with existing notification instead of creating a new one.
+
+**Batch chunking** — Batch inserts are chunked into groups of 100 to avoid exceeding database packet limits and memory pressure on large batches (up to 1000).
+
+**Separate batch controller** — `BatchNotificationController` handles batch store and batch status, keeping `NotificationController` focused on single notification CRUD. Single Responsibility Principle.
 
 **UUID v7 (ordered)** — Used `Str::orderedUuid()` for primary keys to avoid InnoDB clustered index fragmentation with random UUIDs.
