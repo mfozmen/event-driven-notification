@@ -1,7 +1,6 @@
 <?php
 
 use App\Channels\ChannelProviderFactory;
-use App\DTOs\DeliveryResult;
 use App\Enums\Channel;
 use App\Enums\Status;
 use App\Jobs\SendNotificationJob;

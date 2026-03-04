@@ -6,7 +6,7 @@ use App\Enums\Status;
 use App\Models\Notification;
 
 test('notification has correct fillable fields', function () {
-    $notification = new Notification();
+    $notification = new Notification;
 
     expect($notification->getFillable())
         ->toContain('batch_id')

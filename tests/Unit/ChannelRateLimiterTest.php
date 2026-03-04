@@ -54,7 +54,7 @@ test('counter resets after window expires', function () {
     expect($this->limiter->attempt(Channel::SMS))->toBeFalse();
 
     // Simulate window expiry by clearing the counter for the current key
-    $key = 'rate_limit:sms:' . time();
+    $key = 'rate_limit:sms:'.time();
     $this->counters[$key] = 0;
 
     expect($this->limiter->attempt(Channel::SMS))->toBeTrue();

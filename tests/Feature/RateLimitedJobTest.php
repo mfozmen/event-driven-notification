@@ -9,7 +9,6 @@ use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 

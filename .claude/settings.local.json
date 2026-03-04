@@ -29,7 +29,8 @@
       "Bash(./vendor/bin/phpstan analyse:*)",
       "Bash(composer show:*)",
       "Bash(composer require:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(curl:*)"
     ]
   }
 }

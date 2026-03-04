@@ -12,7 +12,7 @@ abstract class AbstractChannelProvider implements NotificationChannelInterface
 {
     public function send(Notification $notification): DeliveryResult
     {
-        $url = config('notifications.webhook.url') . '/' . config('notifications.webhook.uuid');
+        $url = config('notifications.webhook.url').'/'.config('notifications.webhook.uuid');
         $payload = $this->formatPayload($notification);
 
         try {
