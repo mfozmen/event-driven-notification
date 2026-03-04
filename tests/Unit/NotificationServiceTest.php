@@ -11,13 +11,15 @@ use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
+const TEST_RECIPIENT = '+905551234567';
+
 // --- create() ---
 
 test('create returns CreateNotificationResult DTO', function () {
     $service = new NotificationService;
 
     $result = $service->create([
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => Str::orderedUuid()->toString(),
@@ -32,7 +34,7 @@ test('create sets status to pending', function () {
     $service = new NotificationService;
 
     $result = $service->create([
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => Str::orderedUuid()->toString(),
@@ -45,7 +47,7 @@ test('create defaults priority to normal', function () {
     $service = new NotificationService;
 
     $result = $service->create([
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => Str::orderedUuid()->toString(),
@@ -58,7 +60,7 @@ test('create uses provided priority', function () {
     $service = new NotificationService;
 
     $result = $service->create([
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'priority' => 'high',
@@ -73,7 +75,7 @@ test('create returns existing notification for duplicate idempotency key', funct
     $correlationId = Str::orderedUuid()->toString();
 
     $first = $service->create([
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'idempotency_key' => 'key-123',
@@ -81,7 +83,7 @@ test('create returns existing notification for duplicate idempotency key', funct
     ]);
 
     $second = $service->create([
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'idempotency_key' => 'key-123',
@@ -98,7 +100,7 @@ test('create stores correlation_id from data', function () {
     $correlationId = Str::orderedUuid()->toString();
 
     $result = $service->create([
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => $correlationId,

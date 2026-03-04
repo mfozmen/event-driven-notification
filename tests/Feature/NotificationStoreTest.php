@@ -8,9 +8,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+const TEST_RECIPIENT = '+905551234567';
+
 test('store creates notification with valid data', function () {
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello, world!',
         'priority' => 'high',
@@ -32,7 +34,7 @@ test('store creates notification with valid data', function () {
                 'updated_at',
             ],
         ])
-        ->assertJsonPath('data.recipient', '+905551234567')
+        ->assertJsonPath('data.recipient', TEST_RECIPIENT)
         ->assertJsonPath('data.channel', 'sms')
         ->assertJsonPath('data.content', 'Hello, world!')
         ->assertJsonPath('data.priority', 'high')
@@ -43,7 +45,7 @@ test('store creates notification with valid data', function () {
 
 test('store returns correlation id in response header', function () {
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
     ];
@@ -58,7 +60,7 @@ test('store uses correlation id from request header', function () {
     $correlationId = 'my-custom-correlation-id';
 
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
     ];
@@ -81,7 +83,7 @@ test('store returns 422 when required fields are missing', function () {
 
 test('store returns 422 for invalid channel', function () {
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'telegram',
         'content' => 'Hello',
     ];
@@ -94,7 +96,7 @@ test('store returns 422 for invalid channel', function () {
 
 test('store returns 422 for invalid priority', function () {
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'priority' => 'urgent',
@@ -108,7 +110,7 @@ test('store returns 422 for invalid priority', function () {
 
 test('store returns 422 when sms content exceeds 160 chars', function () {
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => str_repeat('a', 161),
     ];
@@ -121,7 +123,7 @@ test('store returns 422 when sms content exceeds 160 chars', function () {
 
 test('store returns existing notification when idempotency key is duplicate', function () {
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
         'idempotency_key' => 'unique-key-123',
@@ -139,7 +141,7 @@ test('store returns existing notification when idempotency key is duplicate', fu
 
 test('store defaults priority to normal when not provided', function () {
     $payload = [
-        'recipient' => '+905551234567',
+        'recipient' => TEST_RECIPIENT,
         'channel' => 'sms',
         'content' => 'Hello',
     ];
