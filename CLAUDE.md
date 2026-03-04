@@ -144,6 +144,7 @@ docker/
 - **Filter queries**: Use Laravel's `when()` method, not if statements
 - **Test naming**: `{method_name} {what it does}` (e.g., `store creates notification with valid data`)
 - **PHPStan level 6**: All code must pass static analysis at level 6
+- **Phase 4 job does NOT call channel providers**: It only handles status transitions and queue mechanics. Provider integration is added in Phase 5.
 
 ### Status Lifecycle
 
