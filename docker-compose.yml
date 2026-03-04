@@ -22,7 +22,7 @@ x-app-environment: &app-environment
   LOG_CHANNEL: stack
   LOG_LEVEL: debug
 
-  WEBHOOK_SITE_UUID: "your-uuid-here"
+  WEBHOOK_SITE_UUID: "cc03cf16-de43-4cd0-9696-da49e73a35f6"
   WEBHOOK_SITE_URL: https://webhook.site
 
   NOTIFICATION_RATE_LIMIT: 100
