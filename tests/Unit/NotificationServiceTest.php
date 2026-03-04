@@ -11,15 +11,15 @@ use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
-const SERVICE_SERVICE_TEST_RECIPIENT = '+905551234567';
+beforeEach(function () {
+    $this->service = new NotificationService;
+});
 
 // --- create() ---
 
 test('create returns CreateNotificationResult DTO', function () {
-    $service = new NotificationService;
-
-    $result = $service->create([
-        'recipient' => SERVICE_TEST_RECIPIENT,
+    $result = $this->service->create([
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => Str::orderedUuid()->toString(),
@@ -31,10 +31,8 @@ test('create returns CreateNotificationResult DTO', function () {
 });
 
 test('create sets status to pending', function () {
-    $service = new NotificationService;
-
-    $result = $service->create([
-        'recipient' => SERVICE_TEST_RECIPIENT,
+    $result = $this->service->create([
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => Str::orderedUuid()->toString(),
@@ -44,10 +42,8 @@ test('create sets status to pending', function () {
 });
 
 test('create defaults priority to normal', function () {
-    $service = new NotificationService;
-
-    $result = $service->create([
-        'recipient' => SERVICE_TEST_RECIPIENT,
+    $result = $this->service->create([
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => Str::orderedUuid()->toString(),
@@ -57,10 +53,8 @@ test('create defaults priority to normal', function () {
 });
 
 test('create uses provided priority', function () {
-    $service = new NotificationService;
-
-    $result = $service->create([
-        'recipient' => SERVICE_TEST_RECIPIENT,
+    $result = $this->service->create([
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'priority' => 'high',
@@ -71,19 +65,18 @@ test('create uses provided priority', function () {
 });
 
 test('create returns existing notification for duplicate idempotency key', function () {
-    $service = new NotificationService;
     $correlationId = Str::orderedUuid()->toString();
 
-    $first = $service->create([
-        'recipient' => SERVICE_TEST_RECIPIENT,
+    $first = $this->service->create([
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'idempotency_key' => 'key-123',
         'correlation_id' => $correlationId,
     ]);
 
-    $second = $service->create([
-        'recipient' => SERVICE_TEST_RECIPIENT,
+    $second = $this->service->create([
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'idempotency_key' => 'key-123',
@@ -96,11 +89,10 @@ test('create returns existing notification for duplicate idempotency key', funct
 });
 
 test('create stores correlation_id from data', function () {
-    $service = new NotificationService;
     $correlationId = Str::orderedUuid()->toString();
 
-    $result = $service->create([
-        'recipient' => SERVICE_TEST_RECIPIENT,
+    $result = $this->service->create([
+        'recipient' => '+905551234567',
         'channel' => 'sms',
         'content' => 'Hello',
         'correlation_id' => $correlationId,
@@ -112,10 +104,9 @@ test('create stores correlation_id from data', function () {
 // --- cancel() ---
 
 test('cancel transitions cancellable notification to cancelled', function (Status $status) {
-    $service = new NotificationService;
     $notification = Notification::factory()->create(['status' => $status]);
 
-    $result = $service->cancel($notification);
+    $result = $this->service->cancel($notification);
 
     expect($result->status)->toBe(Status::CANCELLED);
 })->with([
@@ -125,10 +116,9 @@ test('cancel transitions cancellable notification to cancelled', function (Statu
 ]);
 
 test('cancel aborts 409 for non-cancellable notification', function (Status $status) {
-    $service = new NotificationService;
     $notification = Notification::factory()->create(['status' => $status]);
 
-    $service->cancel($notification);
+    $this->service->cancel($notification);
 })->with([
     Status::PROCESSING,
     Status::DELIVERED,
@@ -139,10 +129,9 @@ test('cancel aborts 409 for non-cancellable notification', function (Status $sta
 // --- list() ---
 
 test('list returns correct structure with defaults', function () {
-    $service = new NotificationService;
     Notification::factory()->count(3)->create();
 
-    $result = $service->list([]);
+    $result = $this->service->list([]);
 
     expect($result)->toHaveKeys(['notifications', 'per_page', 'next_cursor']);
     expect($result['per_page'])->toBe(15);
@@ -151,42 +140,38 @@ test('list returns correct structure with defaults', function () {
 });
 
 test('list filters by status', function () {
-    $service = new NotificationService;
     Notification::factory()->create(['status' => Status::PENDING]);
     Notification::factory()->create(['status' => Status::DELIVERED]);
 
-    $result = $service->list(['status' => 'pending']);
+    $result = $this->service->list(['status' => 'pending']);
 
     expect($result['notifications'])->toHaveCount(1);
     expect($result['notifications']->first()->status)->toBe(Status::PENDING);
 });
 
 test('list filters by channel', function () {
-    $service = new NotificationService;
     Notification::factory()->create(['channel' => Channel::SMS]);
     Notification::factory()->create(['channel' => Channel::EMAIL]);
 
-    $result = $service->list(['channel' => 'sms']);
+    $result = $this->service->list(['channel' => 'sms']);
 
     expect($result['notifications'])->toHaveCount(1);
     expect($result['notifications']->first()->channel)->toBe(Channel::SMS);
 });
 
 test('list returns next_cursor when more results exist', function () {
-    $service = new NotificationService;
     Notification::factory()->count(5)->create();
 
-    $result = $service->list(['per_page' => 2]);
+    $result = $this->service->list(['per_page' => 2]);
 
     expect($result['notifications'])->toHaveCount(2);
     expect($result['next_cursor'])->not->toBeNull();
 });
 
 test('list returns null next_cursor on last page', function () {
-    $service = new NotificationService;
     Notification::factory()->count(2)->create();
 
-    $result = $service->list(['per_page' => 5]);
+    $result = $this->service->list(['per_page' => 5]);
 
     expect($result['notifications'])->toHaveCount(2);
     expect($result['next_cursor'])->toBeNull();
