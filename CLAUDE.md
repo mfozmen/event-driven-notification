@@ -25,6 +25,8 @@ Event-Driven Notification System for Insider One — a scalable REST API that pr
 
 Every phase must include BOTH unit tests and feature tests. Unit tests cover isolated logic (services, DTOs, enums, strategies, value objects). Feature tests cover HTTP endpoints and full request lifecycle. Never skip unit tests — if a service method has logic, it needs a unit test.
 
+Extract repeated literals into file-level constants to avoid duplication warnings (e.g., `const TEST_RECIPIENT = '+905551234567';`).
+
 ## Code Quality Principles
 
 - Write clean, low-complexity methods — extract method refactoring early
