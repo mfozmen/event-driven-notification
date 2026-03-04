@@ -4,9 +4,11 @@ use App\Http\Middleware\CorrelationIdMiddleware;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
+const TEST_PATH = '/test';
+
 test('middleware generates correlation id when not provided', function () {
     $middleware = new CorrelationIdMiddleware;
-    $request = Request::create('/test');
+    $request = Request::create(TEST_PATH);
 
     $response = $middleware->handle($request, fn () => new Response);
 
@@ -19,7 +21,7 @@ test('middleware generates correlation id when not provided', function () {
 
 test('middleware uses correlation id from request header', function () {
     $middleware = new CorrelationIdMiddleware;
-    $request = Request::create('/test');
+    $request = Request::create(TEST_PATH);
     $request->headers->set('X-Correlation-ID', 'my-custom-id');
 
     $response = $middleware->handle($request, fn () => new Response);
@@ -30,7 +32,7 @@ test('middleware uses correlation id from request header', function () {
 
 test('middleware sets correlation id on request attributes', function () {
     $middleware = new CorrelationIdMiddleware;
-    $request = Request::create('/test');
+    $request = Request::create(TEST_PATH);
 
     $middleware->handle($request, fn () => new Response);
 
@@ -39,7 +41,7 @@ test('middleware sets correlation id on request attributes', function () {
 
 test('middleware adds correlation id to response header', function () {
     $middleware = new CorrelationIdMiddleware;
-    $request = Request::create('/test');
+    $request = Request::create(TEST_PATH);
 
     $response = $middleware->handle($request, fn () => new Response);
 
