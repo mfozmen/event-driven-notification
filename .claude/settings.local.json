@@ -24,7 +24,8 @@
       "Bash(composer remove:*)",
       "Bash(php artisan:*)",
       "Bash(composer why:*)",
-      "Bash(php:*)"
+      "Bash(php:*)",
+      "Bash(mv:*)"
     ]
   }
 }

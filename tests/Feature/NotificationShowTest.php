@@ -5,7 +5,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('get notification returns 200 with correct structure', function () {
+test('show returns notification with correct structure', function () {
     $notification = Notification::factory()->create();
 
     $response = $this->getJson("/api/notifications/{$notification->id}");
@@ -29,7 +29,7 @@ test('get notification returns 200 with correct structure', function () {
         ->assertJsonPath('data.id', $notification->id);
 });
 
-test('get notification returns 404 for non-existent uuid', function () {
+test('show returns 404 for non-existent notification', function () {
     $response = $this->getJson('/api/notifications/non-existent-uuid');
 
     $response->assertStatus(404);
