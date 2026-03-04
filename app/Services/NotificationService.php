@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\DTOs\BatchStatusResult;
+use App\DTOs\CreateBatchResult;
 use App\DTOs\CreateNotificationResult;
 use App\Enums\Priority;
 use App\Enums\Status;
 use App\Models\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Str;
 
 class NotificationService
 {
@@ -60,6 +63,49 @@ class NotificationService
         ]);
 
         return new CreateNotificationResult($notification, existed: false);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $notifications
+     */
+    public function createBatch(array $notifications, string $correlationId): CreateBatchResult
+    {
+        $batchId = Str::orderedUuid()->toString();
+
+        collect($notifications)->chunk(100)->each(function ($chunk) use ($batchId, $correlationId) {
+            $records = $chunk->map(fn (array $item) => [
+                'id' => Str::orderedUuid()->toString(),
+                'batch_id' => $batchId,
+                'recipient' => $item['recipient'],
+                'channel' => $item['channel'],
+                'content' => $item['content'],
+                'priority' => $item['priority'] ?? Priority::NORMAL->value,
+                'status' => Status::PENDING->value,
+                'correlation_id' => $correlationId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->all();
+
+            Notification::insert($records);
+        });
+
+        return new CreateBatchResult($batchId, count($notifications));
+    }
+
+    public function batchStatus(string $batchId): ?BatchStatusResult
+    {
+        $notifications = Notification::where('batch_id', $batchId)->get();
+
+        if ($notifications->isEmpty()) {
+            return null;
+        }
+
+        $statusCounts = $notifications
+            ->groupBy(fn (Notification $n) => $n->status->value)
+            ->map->count()
+            ->all();
+
+        return new BatchStatusResult($batchId, $notifications->count(), $statusCounts);
     }
 
     public function cancel(Notification $notification): Notification
