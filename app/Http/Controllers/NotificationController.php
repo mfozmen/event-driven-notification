@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ListNotificationsRequest;
 use App\Http\Requests\StoreNotificationRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
@@ -13,13 +14,30 @@ class NotificationController extends Controller
         private NotificationService $notificationService,
     ) {}
 
+    public function index(ListNotificationsRequest $request)
+    {
+        $result = $this->notificationService->list($request->validated());
+
+        return NotificationResource::collection($result['notifications'])
+            ->additional([
+                'meta' => [
+                    'per_page' => $result['per_page'],
+                    'next_cursor' => $result['next_cursor'],
+                ],
+            ]);
+    }
+
     public function store(StoreNotificationRequest $request)
     {
-        $result = $this->notificationService->create($request->validated());
+        $data = array_merge($request->validated(), [
+            'correlation_id' => $request->attributes->get('correlation_id'),
+        ]);
 
-        $statusCode = $result['existed'] ? 200 : 201;
+        $result = $this->notificationService->create($data);
 
-        return (new NotificationResource($result['notification']))
+        $statusCode = $result->existed ? 200 : 201;
+
+        return (new NotificationResource($result->notification))
             ->response()
             ->setStatusCode($statusCode);
     }

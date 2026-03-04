@@ -41,6 +41,37 @@ test('store creates notification with valid data', function () {
     $this->assertDatabaseCount('notifications', 1);
 });
 
+test('store returns correlation id in response header', function () {
+    $payload = [
+        'recipient' => '+905551234567',
+        'channel' => 'sms',
+        'content' => 'Hello',
+    ];
+
+    $response = $this->postJson('/api/notifications', $payload);
+
+    $response->assertStatus(201)
+        ->assertHeader('X-Correlation-ID');
+});
+
+test('store uses correlation id from request header', function () {
+    $correlationId = 'my-custom-correlation-id';
+
+    $payload = [
+        'recipient' => '+905551234567',
+        'channel' => 'sms',
+        'content' => 'Hello',
+    ];
+
+    $response = $this->postJson('/api/notifications', $payload, [
+        'X-Correlation-ID' => $correlationId,
+    ]);
+
+    $response->assertStatus(201)
+        ->assertHeader('X-Correlation-ID', $correlationId)
+        ->assertJsonPath('data.correlation_id', $correlationId);
+});
+
 test('store returns 422 when required fields are missing', function () {
     $response = $this->postJson('/api/notifications', []);
 
