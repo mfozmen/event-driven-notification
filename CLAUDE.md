@@ -14,7 +14,7 @@ Event-Driven Notification System for Insider One — a scalable REST API that pr
 - **Containerization**: Docker Compose (one-command setup, all env vars in docker-compose.yml)
 - **API Docs**: Swagger/OpenAPI via L5-Swagger
 - **Testing**: Pest 3 (TDD — tests first, then implement)
-- **Code Quality**: Laravel Pint, PHPStan (Larastan level 5)
+- **Code Quality**: Laravel Pint, PHPStan (Larastan level 6)
 - **External Provider**: webhook.site (simulates SMS/Email/Push delivery)
 
 ## Development Approach
@@ -72,10 +72,12 @@ docker-compose exec app php artisan l5-swagger:generate
 
 ```
 app/
+  DTOs/           # Data transfer objects (e.g., CreateNotificationResult)
   Enums/          # Channel, Priority, Status (backed string enums)
   Models/         # Notification
   Http/
     Controllers/  # API controllers
+    Middleware/   # CorrelationIdMiddleware
     Requests/     # Form requests
     Resources/    # API resources
   Services/       # Business logic
@@ -102,29 +104,39 @@ docker/
 - **Batch**: Groups up to 1000 notifications per request, tracked by `batch_id`
 - **Channel Providers**: Strategy pattern — SMS, Email, Push each implement `NotificationChannelInterface`, all POST to webhook.site
 
-### Key Patterns
+### Key Patterns & Decisions
 
 - **Event-Driven**: `NotificationCreated` event → listener dispatches to priority queue
 - **Strategy Pattern**: Channel delivery behind `NotificationChannelInterface`
 - **Priority Queues**: `high`, `normal`, `low` Redis queues
-- **Rate Limiting**: 100 messages/second/channel via Redis token bucket
-- **Idempotency**: Client-provided key prevents duplicate sends
-- **Retry + Exponential Backoff**: Candidate-designed, 3 attempts with jitter
-- **Correlation IDs**: UUID per request, propagated through jobs and logs
+- **Rate Limiting**: 100 messages/second/channel via Redis sliding window
+- **Idempotency**: Client-provided key prevents duplicate sends (duplicate returns 200, not 201)
+- **Retry + Exponential Backoff**: 3 attempts with jitter, via `$job->release($delay)`
+- **Correlation ID**: Generated in `CorrelationIdMiddleware`, passed through request — not generated per notification
+- **Cursor-based pagination**: Not offset-based — consistently fast regardless of dataset size
+- **DTOs for service returns**: Service methods return typed DTOs, not raw arrays
+- **Cancellable statuses**: `pending`, `queued`, `retrying` — anything not yet delivered
+- **Separate batch endpoint**: `POST /api/notifications/batch`, not detected in store
+- **Cancel via PATCH**: `PATCH /api/notifications/{id}/cancel` — changes state, not deletion
+- **UUID v7**: `Str::orderedUuid()` for primary keys — avoids InnoDB clustered index fragmentation
+- **Filter queries**: Use Laravel's `when()` method, not if statements
+- **Test naming**: `{method_name} {what it does}` (e.g., `store creates notification with valid data`)
+- **PHPStan level 6**: All code must pass static analysis at level 6
 
 ### Status Lifecycle
 
 `pending` → `queued` → `processing` → `delivered`
                                     ↘ `failed` → `retrying` → `delivered`
                                                              ↘ `permanently_failed`
-`cancelled` (from `pending` or `queued`)
+`cancelled` (from `pending`, `queued`, or `retrying`)
 
 ### API Endpoints
 
-- `POST   /api/notifications`              — create single or batch (up to 1000)
+- `POST   /api/notifications`              — create single notification
+- `POST   /api/notifications/batch`        — create batch (up to 1000)
 - `GET    /api/notifications/{id}`         — get status
-- `GET    /api/notifications`              — list with filters + pagination
-- `DELETE /api/notifications/{id}`         — cancel pending
+- `GET    /api/notifications`              — list with filters + cursor-based pagination
+- `PATCH  /api/notifications/{id}/cancel`  — cancel pending/queued/retrying
 - `GET    /api/notifications/batch/{id}`   — batch status
 - `GET    /api/health`                     — health check
 - `GET    /api/metrics`                    — queue depth, rates, latency

@@ -9,10 +9,9 @@ A scalable notification system built with Laravel 11 that processes and delivers
 - **Framework**: PHP Laravel 11
 - **Database**: MySQL 8
 - **Queue / Cache**: Redis
-- **WebSocket**: Laravel Reverb
 - **API Docs**: Swagger / OpenAPI (L5-Swagger)
 - **Testing**: Pest 3
-- **Code Quality**: Laravel Pint, PHPStan (Larastan level 5)
+- **Code Quality**: Laravel Pint, PHPStan (Larastan level 6)
 - **Container**: Docker Compose
 
 ---
@@ -83,3 +82,33 @@ php artisan l5-swagger:generate
 ```
 
 Inside Docker prefix with `docker-compose exec app`.
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/notifications` | Create single notification |
+| `POST` | `/api/notifications/batch` | Create batch (up to 1000) |
+| `GET` | `/api/notifications` | List with filters + cursor pagination |
+| `GET` | `/api/notifications/{id}` | Get notification by ID |
+| `PATCH` | `/api/notifications/{id}/cancel` | Cancel a notification |
+
+---
+
+## Design Decisions
+
+**Cancellation scope** — Extended beyond just `pending` to include `queued` and `retrying` statuses. Notifications that haven't been delivered yet should be cancellable. `processing`, `delivered`, `failed`, and `permanently_failed` cannot be cancelled.
+
+**Cursor-based pagination** — Used instead of offset-based because `OFFSET N` degrades at scale. Cursor pagination is consistently fast regardless of dataset size.
+
+**Separate batch endpoint** — `POST /api/notifications/batch` instead of detecting array/single in the store method. Cleaner REST design, easier to test and document.
+
+**PATCH for cancel** — Cancel changes state, it doesn't delete the resource. `PATCH /api/notifications/{id}/cancel` is semantically correct.
+
+**Correlation ID from middleware** — Generated once per request in `CorrelationIdMiddleware`, shared across all notifications in the same request (important for batch). Enables distributed tracing.
+
+**Idempotency key** — Client-provided key to prevent duplicate notifications on network retries. Duplicate request returns `200` with existing notification instead of creating a new one.
+
+**UUID v7 (ordered)** — Used `Str::orderedUuid()` for primary keys to avoid InnoDB clustered index fragmentation with random UUIDs.
