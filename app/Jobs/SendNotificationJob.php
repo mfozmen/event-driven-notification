@@ -39,19 +39,27 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
-        $provider = $factory->resolve($notification->channel);
-        $result = $provider->send($notification);
+        try {
+            $provider = $factory->resolve($notification->channel);
+            $result = $provider->send($notification);
 
-        if ($result->success) {
-            $notification->update([
-                'status' => Status::DELIVERED,
-                'delivered_at' => now(),
-            ]);
-        } else {
+            if ($result->success) {
+                $notification->update([
+                    'status' => Status::DELIVERED,
+                    'delivered_at' => now(),
+                ]);
+            } else {
+                $notification->update([
+                    'status' => Status::FAILED,
+                    'failed_at' => now(),
+                    'error_message' => $result->errorMessage,
+                ]);
+            }
+        } catch (\Throwable $e) {
             $notification->update([
                 'status' => Status::FAILED,
                 'failed_at' => now(),
-                'error_message' => $result->errorMessage,
+                'error_message' => $e->getMessage(),
             ]);
         }
     }
