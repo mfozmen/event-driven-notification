@@ -53,13 +53,11 @@ test('command ignores retrying notifications with future next_retry_at', functio
     Queue::assertNothingPushed();
 });
 
-test('command ignores notifications in other statuses', function () {
+test('command ignores notifications in terminal statuses', function () {
     Queue::fake();
 
     $statuses = [
-        Status::PENDING,
         Status::QUEUED,
-        Status::PROCESSING,
         Status::DELIVERED,
         Status::PERMANENTLY_FAILED,
         Status::CANCELLED,
@@ -107,4 +105,90 @@ test('command outputs count of processed notifications', function () {
     $this->artisan('notifications:process-stuck')
         ->expectsOutputToContain('Processed 3 stuck notifications')
         ->assertSuccessful();
+});
+
+test('command re-dispatches processing notifications stuck for more than 5 minutes', function () {
+    Queue::fake();
+
+    $notification = Notification::factory()->create([
+        'status' => Status::PROCESSING,
+        'priority' => Priority::HIGH,
+        'last_attempted_at' => now()->subMinutes(6),
+        'attempts' => 1,
+        'max_attempts' => 3,
+    ]);
+
+    $this->artisan('notifications:process-stuck')
+        ->assertSuccessful();
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::QUEUED);
+
+    Queue::assertPushed(SendNotificationJob::class, function ($job) use ($notification) {
+        return $job->notificationId === $notification->id
+            && $job->queue === 'high';
+    });
+});
+
+test('command ignores processing notifications under 5 minutes old', function () {
+    Queue::fake();
+
+    $notification = Notification::factory()->create([
+        'status' => Status::PROCESSING,
+        'last_attempted_at' => now()->subMinutes(3),
+        'attempts' => 1,
+        'max_attempts' => 3,
+    ]);
+
+    $this->artisan('notifications:process-stuck')
+        ->assertSuccessful();
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::PROCESSING);
+
+    Queue::assertNothingPushed();
+});
+
+test('command re-dispatches pending notifications stuck for more than 2 minutes', function () {
+    Queue::fake();
+
+    $notification = Notification::factory()->create([
+        'status' => Status::PENDING,
+        'priority' => Priority::NORMAL,
+        'created_at' => now()->subMinutes(3),
+        'scheduled_at' => null,
+    ]);
+
+    $this->artisan('notifications:process-stuck')
+        ->assertSuccessful();
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::QUEUED);
+
+    Queue::assertPushed(SendNotificationJob::class, function ($job) use ($notification) {
+        return $job->notificationId === $notification->id
+            && $job->queue === 'normal';
+    });
+});
+
+test('command ignores scheduled notifications in pending status', function () {
+    Queue::fake();
+
+    $notification = Notification::factory()->create([
+        'status' => Status::PENDING,
+        'created_at' => now()->subMinutes(10),
+        'scheduled_at' => now()->addMinutes(30),
+    ]);
+
+    $this->artisan('notifications:process-stuck')
+        ->assertSuccessful();
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::PENDING);
+
+    Queue::assertNothingPushed();
 });

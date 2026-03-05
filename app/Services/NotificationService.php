@@ -11,6 +11,7 @@ use App\Events\NotificationCreated;
 use App\Models\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class NotificationService
@@ -81,21 +82,23 @@ class NotificationService
     {
         $batchId = Str::orderedUuid()->toString();
 
-        collect($notifications)->chunk(100)->each(function ($chunk) use ($batchId, $correlationId) {
-            $records = $chunk->map(fn (array $item) => [
-                'id' => Str::orderedUuid()->toString(),
-                'batch_id' => $batchId,
-                'recipient' => $item['recipient'],
-                'channel' => $item['channel'],
-                'content' => $item['content'],
-                'priority' => $item['priority'] ?? Priority::NORMAL->value,
-                'status' => Status::PENDING->value,
-                'correlation_id' => $correlationId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ])->all();
+        DB::transaction(function () use ($notifications, $batchId, $correlationId) {
+            collect($notifications)->chunk(100)->each(function ($chunk) use ($batchId, $correlationId) {
+                $records = $chunk->map(fn (array $item) => [
+                    'id' => Str::orderedUuid()->toString(),
+                    'batch_id' => $batchId,
+                    'recipient' => $item['recipient'],
+                    'channel' => $item['channel'],
+                    'content' => $item['content'],
+                    'priority' => $item['priority'] ?? Priority::NORMAL->value,
+                    'status' => Status::PENDING->value,
+                    'correlation_id' => $correlationId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])->all();
 
-            Notification::insert($records);
+                Notification::insert($records);
+            });
         });
 
         $this->dispatchBatchEvents($batchId);
