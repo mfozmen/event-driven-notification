@@ -1,0 +1,311 @@
+{
+	"info": {
+		"name": "Event-Driven Notification API",
+		"description": "REST API for the Event-Driven Notification System. Supports SMS, Email, and Push channels with priority queues, idempotency, batch processing, and real-time status tracking.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "notification_id",
+			"value": ""
+		},
+		{
+			"key": "batch_id",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "Create Notification (SMS)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"recipient\": \"+905551234567\",\n\t\"channel\": \"sms\",\n\t\"content\": \"Test SMS\",\n\t\"priority\": \"high\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"]
+						},
+						"description": "Create a single SMS notification with high priority."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Notification (SMS with Idempotency Key)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"recipient\": \"+905551234567\",\n\t\"channel\": \"sms\",\n\t\"content\": \"Test SMS\",\n\t\"priority\": \"high\",\n\t\"idempotency_key\": \"unique-key-123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"]
+						},
+						"description": "Create an SMS notification with an idempotency key. Sending the same request twice returns 200 with the existing notification instead of creating a duplicate."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Notification (Email)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"recipient\": \"user@example.com\",\n\t\"channel\": \"email\",\n\t\"content\": \"Test email content\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"]
+						},
+						"description": "Create an email notification. Priority defaults to normal."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Notification (Push)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"recipient\": \"device-token-abc\",\n\t\"channel\": \"push\",\n\t\"content\": \"Test push\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"]
+						},
+						"description": "Create a push notification. Priority defaults to normal."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notification",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/{{notification_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "{{notification_id}}"]
+						},
+						"description": "Get a single notification by ID. Returns full details including status, attempts, timestamps."
+					},
+					"response": []
+				},
+				{
+					"name": "List Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications?status=delivered&channel=sms&date_from=2026-01-01&date_to=2026-12-31&per_page=10&cursor=",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"],
+							"query": [
+								{
+									"key": "status",
+									"value": "delivered",
+									"description": "Filter by status: pending, queued, processing, delivered, failed, retrying, permanently_failed, cancelled"
+								},
+								{
+									"key": "channel",
+									"value": "sms",
+									"description": "Filter by channel: sms, email, push"
+								},
+								{
+									"key": "date_from",
+									"value": "2026-01-01",
+									"description": "Filter notifications created after this date (Y-m-d)"
+								},
+								{
+									"key": "date_to",
+									"value": "2026-12-31",
+									"description": "Filter notifications created before this date (Y-m-d)"
+								},
+								{
+									"key": "per_page",
+									"value": "10",
+									"description": "Number of results per page (default: 15)"
+								},
+								{
+									"key": "cursor",
+									"value": "",
+									"description": "Cursor for pagination (from meta.next_cursor in previous response)"
+								}
+							]
+						},
+						"description": "List notifications with optional filters and cursor-based pagination. All query parameters are optional."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Notification",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/{{notification_id}}/cancel",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "{{notification_id}}", "cancel"]
+						},
+						"description": "Cancel a notification. Only works for cancellable statuses: pending, queued, retrying. Returns 409 if the notification is in a non-cancellable status (processing, delivered, failed, permanently_failed, cancelled)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Batch",
+			"item": [
+				{
+					"name": "Create Batch",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"notifications\": [\n\t\t{\n\t\t\t\"recipient\": \"+905551234567\",\n\t\t\t\"channel\": \"sms\",\n\t\t\t\"content\": \"Batch SMS message\",\n\t\t\t\"priority\": \"high\"\n\t\t},\n\t\t{\n\t\t\t\"recipient\": \"user@example.com\",\n\t\t\t\"channel\": \"email\",\n\t\t\t\"content\": \"Batch email content\"\n\t\t},\n\t\t{\n\t\t\t\"recipient\": \"device-token-xyz\",\n\t\t\t\"channel\": \"push\",\n\t\t\t\"content\": \"Batch push notification\",\n\t\t\t\"priority\": \"low\"\n\t\t}\n\t]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications/batch",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "batch"]
+						},
+						"description": "Create a batch of up to 1000 notifications. Returns batch_id and count. Each notification is processed independently through the queue."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Batch Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/notifications/batch/{{batch_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications", "batch", "{{batch_id}}"]
+						},
+						"description": "Get batch status by batch_id. Returns total count and per-status breakdown (e.g., delivered: 2, failed: 1)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Idempotency Test",
+			"item": [
+				{
+					"name": "Idempotent Request (1st — creates)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"recipient\": \"+905551234567\",\n\t\"channel\": \"sms\",\n\t\"content\": \"Idempotency test\",\n\t\"idempotency_key\": \"test-idempotency-key\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"]
+						},
+						"description": "First request with idempotency key. Expected: 201 Created."
+					},
+					"response": []
+				},
+				{
+					"name": "Idempotent Request (2nd — returns existing)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"recipient\": \"+905551234567\",\n\t\"channel\": \"sms\",\n\t\"content\": \"Idempotency test\",\n\t\"idempotency_key\": \"test-idempotency-key\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/notifications",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notifications"]
+						},
+						"description": "Duplicate request with same idempotency key. Expected: 200 OK with the same notification ID as the first request."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
