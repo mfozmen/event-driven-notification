@@ -197,9 +197,35 @@ return [
     */
 
     'defaults' => [
-        'notification-worker' => [
+        'notification-worker-high' => [
             'connection' => 'redis',
-            'queue' => ['high', 'normal', 'low'],
+            'queue' => ['high'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 3,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 1,
+            'timeout' => 60,
+            'nice' => 0,
+        ],
+        'notification-worker-normal' => [
+            'connection' => 'redis',
+            'queue' => ['normal'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 1,
+            'timeout' => 60,
+            'nice' => 0,
+        ],
+        'notification-worker-low' => [
+            'connection' => 'redis',
+            'queue' => ['low'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,
@@ -214,16 +240,32 @@ return [
 
     'environments' => [
         'production' => [
-            'notification-worker' => [
+            'notification-worker-high' => [
                 'maxProcesses' => 10,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
+            'notification-worker-normal' => [
+                'maxProcesses' => 5,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
+            'notification-worker-low' => [
+                'maxProcesses' => 3,
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
         ],
 
         'local' => [
-            'notification-worker' => [
+            'notification-worker-high' => [
                 'maxProcesses' => 3,
+            ],
+            'notification-worker-normal' => [
+                'maxProcesses' => 2,
+            ],
+            'notification-worker-low' => [
+                'maxProcesses' => 1,
             ],
         ],
     ],

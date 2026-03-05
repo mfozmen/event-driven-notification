@@ -227,3 +227,5 @@ Inside Docker prefix with `docker-compose exec app`.
 **UUID v7 (ordered)** — Used `Str::orderedUuid()` for primary keys to avoid InnoDB clustered index fragmentation with random UUIDs.
 
 **Channel content limits** — SMS: 160 chars, Email: 10,000 chars, Push: 500 chars. Enforced at the validation layer for both single and batch endpoints.
+
+**Isolated worker pools per priority** — Instead of a single worker group processing all queues in order, each priority level has its own dedicated worker pool (high: 3 processes, normal: 2, low: 1). This prevents low-priority bulk notifications from blocking high-priority messages. In a single-pool setup, a worker processing a low-priority job can't pick up a new high-priority job until it finishes.
