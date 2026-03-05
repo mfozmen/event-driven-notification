@@ -221,38 +221,85 @@ Phase 4 was too large — Horizon setup, event/listener/job chain, and rate limi
 
 ---
 
-## Phase 6 — Retry Logic (TDD) — Candidate Design
+## Phase 6a — RetryStrategy + Job Retry Integration (TDD)
 
-**Goal**: Intelligent retry with exponential backoff, jitter, and circuit breaking.
+**Goal**: Add retry logic with exponential backoff and jitter. Replace immediate `failed` status with `retrying` (retryable errors) or `permanently_failed` (non-retryable or max attempts exceeded).
 
 ### Design decisions:
 - **Max retries**: 3 attempts (configurable via `max_attempts` column)
-- **Backoff**: Exponential with jitter — `base_delay * 2^attempt + random(0, 1000ms)`
-  - Attempt 1: ~30s, Attempt 2: ~120s, Attempt 3: ~480s
+- **Backoff**: Exponential with jitter — `base_delay * 2^(attempt-1) + random(0, 1000ms)`
+  - Attempt 1: ~30s, Attempt 2: ~60s, Attempt 3: ~120s
   - Jitter prevents thundering herd when many notifications fail simultaneously
 - **Retryable failures**: HTTP 5xx, timeouts, connection errors
 - **Non-retryable**: HTTP 4xx (bad request → `permanently_failed` immediately)
 - **Primary retry mechanism**: `$this->release($calculatedDelay)` — Laravel's native job release
-- **Safety net**: Scheduled command catches notifications stuck in `retrying` status with `next_retry_at <= now`
-- **Dead letter**: After max retries → `permanently_failed` status
-- **Circuit breaker** (per channel): Redis-backed, if >50% failure rate in last 60s window, pause channel briefly
 
 ### Tests first:
-- Unit: Retry delay calculation (exponential backoff with jitter, verify range)
-- Unit: Retryable vs non-retryable error classification
-- Unit: Max retries reached → `permanently_failed`
-- Unit: Circuit breaker opens after threshold, closes after cooldown
-- Feature: Full retry flow — fail → retry with delay → succeed on 2nd attempt
-- Feature: Full retry flow — fail → max retries → `permanently_failed`
-- Feature: Safety net command picks up stuck `retrying` notifications
+- Unit: `RetryStrategy::calculateDelay()` — exponential backoff with base delay
+- Unit: `RetryStrategy::calculateDelay()` — adds jitter up to 1000ms
+- Unit: `RetryStrategy::shouldRetry()` — true when retryable and attempts remaining
+- Unit: `RetryStrategy::shouldRetry()` — false when non-retryable or max attempts reached
+- Unit: Job retries retryable failure when attempts remaining (status → retrying)
+- Unit: Job sets permanently_failed when max attempts reached
+- Unit: Job sets permanently_failed for non-retryable failure
+- Feature: Retryable failure sets status to retrying and re-queues
+- Feature: Non-retryable failure sets permanently_failed immediately
+- Feature: Full retry cycle — attempt 1 fails (retrying), attempt 2 fails (retrying), attempt 3 fails (permanently_failed)
 
 ### Implementation:
-1. **`RetryStrategy`** — calculates delay, classifies errors as retryable/non-retryable
-2. **`CircuitBreaker`** — Redis-backed, per-channel, sliding window failure tracking
-3. **Job failure handling** — on retryable error: update `attempts`, set `next_retry_at`, `release($delay)`. On non-retryable: immediate `permanently_failed`
-4. **`ProcessStuckNotifications`** artisan command — safety net, runs every minute, re-dispatches stuck jobs
+1. **`RetryStrategy`** service — `shouldRetry(DeliveryResult, attempts, maxAttempts)` and `calculateDelay(attempt)`
+2. **Update `SendNotificationJob`** — add RetryStrategy as 3rd DI parameter, replace failure path with retry/permanently_failed logic, update `claimNotification()` to accept both `queued` and `retrying` statuses
 
-**Commit**: "feat: exponential backoff retry with jitter and circuit breaker"
+**Commit**: "feat: retry strategy with exponential backoff and jitter"
+
+---
+
+## Phase 6b — Circuit Breaker (TDD)
+
+**Goal**: Redis-backed per-channel circuit breaker to pause delivery when a channel is experiencing high failure rates.
+
+### Design decisions:
+- **Per-channel**: Each channel (SMS/Email/Push) has its own circuit breaker
+- **Threshold**: >50% failure rate in last 60s sliding window, minimum 10 requests
+- **States**: Closed (normal) → Open (blocking) → Half-open (testing)
+- **Cooldown**: 30s before transitioning from open to half-open
+- **Redis-backed**: Sliding window counters stored in Redis
+
+### Tests first:
+- Unit: Circuit breaker stays closed under normal failure rates
+- Unit: Circuit breaker opens after exceeding threshold
+- Unit: Circuit breaker transitions to half-open after cooldown
+- Unit: Half-open allows one request through
+- Feature: Job releases back to queue when circuit is open
+
+### Implementation:
+1. **`CircuitBreaker`** service — Redis sliding window, per-channel state tracking
+2. **Integrate into `SendNotificationJob`** — check circuit breaker before calling provider, if open → release job
+
+**Commit**: "feat: per-channel circuit breaker with Redis sliding window"
+
+---
+
+## Phase 6c — Safety Net Command (TDD)
+
+**Goal**: Artisan command to catch notifications stuck in `retrying` status and re-dispatch them.
+
+### Design decisions:
+- **Query**: `status = retrying AND next_retry_at <= now()`
+- **Runs**: Every minute via Laravel scheduler
+- **Batch processing**: Chunks of 100 to avoid memory issues
+
+### Tests first:
+- Unit: Command finds stuck retrying notifications
+- Unit: Command re-dispatches stuck notifications to correct priority queue
+- Unit: Command ignores retrying notifications with future next_retry_at
+- Feature: Full flow — notification gets stuck, command re-dispatches, notification gets delivered
+
+### Implementation:
+1. **`ProcessStuckNotifications`** artisan command — queries stuck notifications, sets status back to `queued`, dispatches `SendNotificationJob`
+2. **Schedule**: `$schedule->command('notifications:process-stuck')->everyMinute()` in `routes/console.php`
+
+**Commit**: "feat: safety net command for stuck retrying notifications"
 
 ---
 
