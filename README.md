@@ -60,6 +60,7 @@ Client → REST API → NotificationCreated Event → QueueNotificationListener
   → Rate Limiter Check → Circuit Breaker Check → Atomic Status Claim
   → Channel Provider (SMS/Email/Push) → POST to webhook.site
   → Status Update (delivered/retrying/permanently_failed)
+  → NotificationLogger records each transition to notification_logs table
 ```
 
 1. **API receives request** — validates, creates notification with `pending` status
@@ -141,6 +142,30 @@ curl http://localhost:8080/api/notifications/batch/{batchId}
 ```
 
 Returns total count and per-status breakdown.
+
+### Health Check
+
+```bash
+curl http://localhost:8080/api/health
+```
+
+Returns `200` with `status: "healthy"` when all services (database, Redis, Horizon) are up. Returns `503` with `status: "degraded"` if any service is down. No `X-Correlation-ID` middleware — designed for load balancers and monitoring tools.
+
+### Metrics
+
+```bash
+curl http://localhost:8080/api/metrics
+```
+
+Returns queue depths (high/normal/low), delivery counts (success/failure per channel), average latency per channel, and total notification counts by status.
+
+### Notification Trace
+
+```bash
+curl http://localhost:8080/api/notifications/{id}/trace
+```
+
+Returns an ordered list of status transition log entries for a notification: `created → queued → processing → delivered` (or `retrying → permanently_failed`). Each entry includes `event`, `correlation_id`, `details`, and `created_at`.
 
 ---
 
@@ -251,3 +276,11 @@ php artisan notifications:process-stuck
 **Safety net command** — `notifications:process-stuck` runs every minute via Laravel scheduler. Catches notifications stuck in `retrying` status where `next_retry_at` has passed — sets status back to `queued` and re-dispatches `SendNotificationJob` to the correct priority queue. This handles edge cases where `$job->release($delay)` fails silently or a worker crashes mid-retry. Processes in chunks of 100 to handle large backlogs without memory issues.
 
 **Horizontal scaling** — The Horizon service can be scaled independently with `docker compose up --scale horizon=N`. Each instance manages its own worker pool. The API and queue processing are already separate containers sharing the same codebase but with different entry points (`php-fpm` vs `php artisan horizon`), making horizontal scaling straightforward without code changes.
+
+**Health check endpoint** — `GET /api/health` checks database, Redis, and Horizon connectivity with latency measurements. Returns `200 healthy` or `503 degraded`. Excludes `CorrelationIdMiddleware` so load balancers and monitoring tools can call it without generating correlation IDs.
+
+**Metrics endpoint** — `GET /api/metrics` returns queue depths (Redis LLEN), delivery success/failure counts per channel (Redis INCR counters with 1-hour TTL), average latency per channel (last 100 deliveries), and total notification counts by status (database aggregation). Counters are recorded in `SendNotificationJob` after each delivery attempt.
+
+**Structured JSON logging** — Custom `JsonLogFormatter` implements Monolog's `FormatterInterface`. Outputs one JSON object per line with `timestamp`, `level`, `message`, and optional `correlation_id`, `notification_id`, `channel` from context. Configured as the `json` log channel in `config/logging.php`, set as default via `LOG_CHANNEL=json` in `docker-compose.yml`.
+
+**Distributed tracing** — `NotificationLogger` service records every status transition to the `notification_logs` table: `created`, `queued`, `processing`, `delivered`, `retrying`, `permanently_failed`, `cancelled`. Each log entry includes `notification_id`, `correlation_id`, `event`, optional `details` (JSON), and `created_at`. The `GET /api/notifications/{id}/trace` endpoint returns these entries in chronological order, providing a complete audit trail for each notification.
