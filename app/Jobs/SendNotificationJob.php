@@ -12,6 +12,7 @@ use App\Services\NotificationLogger;
 use App\Services\RetryStrategy;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
 class SendNotificationJob implements ShouldQueue
@@ -51,7 +52,7 @@ class SendNotificationJob implements ShouldQueue
         }
 
         $logger = app(NotificationLogger::class);
-        $logger->log($notification, 'processing');
+        $this->safeLog($logger, $notification, 'processing');
 
         $start = microtime(true);
 
@@ -59,21 +60,21 @@ class SendNotificationJob implements ShouldQueue
             $provider = $factory->resolve($notification->channel);
             $result = $provider->send($notification);
 
-            $this->recordMetrics($notification, $result->success, $start);
+            $this->safeRecordMetrics($notification, $result->success, $start);
 
             if ($result->success) {
                 $notification->update([
                     'status' => Status::DELIVERED,
                     'delivered_at' => now(),
                 ]);
-                $logger->log($notification, 'delivered');
+                $this->safeLog($logger, $notification, 'delivered');
                 $circuitBreaker->recordSuccess($notification->channel);
             } else {
                 $circuitBreaker->recordFailure($notification->channel);
                 $this->handleFailure($notification, $result, $retryStrategy, $logger);
             }
         } catch (\Throwable $e) {
-            $this->recordMetrics($notification, false, $start);
+            $this->safeRecordMetrics($notification, false, $start);
             $circuitBreaker->recordFailure($notification->channel);
             $result = DeliveryResult::failure($e->getMessage(), true);
             $this->handleFailure($notification, $result, $retryStrategy, $logger);
@@ -89,7 +90,7 @@ class SendNotificationJob implements ShouldQueue
                 'next_retry_at' => now()->addSeconds($delay),
                 'error_message' => $result->errorMessage,
             ]);
-            $logger->log($notification, 'retrying', ['error' => $result->errorMessage, 'delay' => $delay]);
+            $this->safeLog($logger, $notification, 'retrying', ['error' => $result->errorMessage, 'delay' => $delay]);
             $this->release($delay);
         } else {
             $notification->update([
@@ -97,20 +98,42 @@ class SendNotificationJob implements ShouldQueue
                 'failed_at' => now(),
                 'error_message' => $result->errorMessage,
             ]);
-            $logger->log($notification, 'permanently_failed', ['error' => $result->errorMessage]);
+            $this->safeLog($logger, $notification, 'permanently_failed', ['error' => $result->errorMessage]);
         }
     }
 
-    private function recordMetrics(Notification $notification, bool $success, float $start): void
+    /**
+     * @param  array<string, mixed>|null  $details
+     */
+    private function safeLog(NotificationLogger $logger, Notification $notification, string $event, ?array $details = null): void
     {
-        $channel = $notification->channel->value;
-        $key = $success ? "metrics:deliveries:success:{$channel}" : "metrics:deliveries:failure:{$channel}";
-        $latency = round((microtime(true) - $start) * 1000, 2);
+        try {
+            $logger->log($notification, $event, $details);
+        } catch (\Throwable $e) {
+            Log::error("Failed to log notification event: {$event}", [
+                'notification_id' => $notification->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
 
-        Redis::incr($key);
-        Redis::expire($key, 3600);
-        Redis::lpush("metrics:latency:{$channel}", $latency);
-        Redis::ltrim("metrics:latency:{$channel}", 0, 99);
+    private function safeRecordMetrics(Notification $notification, bool $success, float $start): void
+    {
+        try {
+            $channel = $notification->channel->value;
+            $key = $success ? "metrics:deliveries:success:{$channel}" : "metrics:deliveries:failure:{$channel}";
+            $latency = round((microtime(true) - $start) * 1000, 2);
+
+            Redis::incr($key);
+            Redis::expire($key, 3600);
+            Redis::lpush("metrics:latency:{$channel}", $latency);
+            Redis::ltrim("metrics:latency:{$channel}", 0, 99);
+        } catch (\Throwable $e) {
+            Log::error('Failed to record delivery metrics', [
+                'notification_id' => $notification->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function claimNotification(Notification $notification): bool
