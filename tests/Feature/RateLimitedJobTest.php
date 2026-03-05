@@ -8,6 +8,7 @@ use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -18,6 +19,8 @@ beforeEach(function () {
 
     $this->factory = Mockery::mock(ChannelProviderFactory::class);
     $this->factory->shouldReceive('resolve')->andReturn($provider);
+
+    $this->retryStrategy = Mockery::mock(RetryStrategy::class);
 });
 
 test('job is released back to queue when rate limited', function () {
@@ -35,7 +38,7 @@ test('job is released back to queue when rate limited', function () {
         ->makePartial();
     $job->shouldReceive('release')->with(1)->once();
 
-    $job->handle($limiter, $this->factory);
+    $job->handle($limiter, $this->factory, $this->retryStrategy);
 
     $notification->refresh();
 
@@ -54,7 +57,7 @@ test('job processes notification when rate limit allows', function () {
         ->andReturn(true);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($limiter, $this->factory);
+    $job->handle($limiter, $this->factory, $this->retryStrategy);
 
     $notification->refresh();
 

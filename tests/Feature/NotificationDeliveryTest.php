@@ -6,6 +6,7 @@ use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 
@@ -14,6 +15,8 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->rateLimiter = Mockery::mock(ChannelRateLimiter::class);
     $this->rateLimiter->shouldReceive('attempt')->andReturn(true);
+
+    $this->retryStrategy = new RetryStrategy;
 });
 
 test('job delivers notification successfully via channel provider', function () {
@@ -33,7 +36,7 @@ test('job delivers notification successfully via channel provider', function () 
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class));
+    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class), $this->retryStrategy);
 
     $notification->refresh();
 
@@ -43,7 +46,7 @@ test('job delivers notification successfully via channel provider', function () 
     expect($notification->last_attempted_at)->not->toBeNull();
 });
 
-test('job sets status to failed when provider returns 500', function () {
+test('job sets status to retrying when provider returns 500', function () {
     Http::fake([
         '*' => Http::response(['error' => 'Internal Server Error'], 500),
     ]);
@@ -53,15 +56,16 @@ test('job sets status to failed when provider returns 500', function () {
         'channel' => Channel::EMAIL,
         'recipient' => 'user@example.com',
         'content' => 'Failure test',
+        'max_attempts' => 3,
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class));
+    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class), $this->retryStrategy);
 
     $notification->refresh();
 
-    expect($notification->status)->toBe(Status::FAILED);
-    expect($notification->failed_at)->not->toBeNull();
+    expect($notification->status)->toBe(Status::RETRYING);
+    expect($notification->next_retry_at)->not->toBeNull();
     expect($notification->error_message)->not->toBeNull();
     expect($notification->attempts)->toBe(1);
     expect($notification->last_attempted_at)->not->toBeNull();

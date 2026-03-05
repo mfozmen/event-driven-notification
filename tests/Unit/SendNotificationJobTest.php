@@ -7,6 +7,7 @@ use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -20,13 +21,15 @@ beforeEach(function () {
 
     $this->factory = Mockery::mock(ChannelProviderFactory::class);
     $this->factory->shouldReceive('resolve')->andReturn($provider);
+
+    $this->retryStrategy = Mockery::mock(RetryStrategy::class);
 });
 
 test('handle performs atomic status transition from queued to delivered', function () {
     $notification = Notification::factory()->create(['status' => Status::QUEUED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
 
     $notification->refresh();
 
@@ -37,7 +40,7 @@ test('handle skips notification that is not in queued status', function () {
     $notification = Notification::factory()->create(['status' => Status::PROCESSING]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
 
     $notification->refresh();
 
@@ -48,7 +51,7 @@ test('handle skips notification that is already delivered', function () {
     $notification = Notification::factory()->create(['status' => Status::DELIVERED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
 
     $notification->refresh();
 
@@ -59,7 +62,7 @@ test('handle skips notification that was cancelled', function () {
     $notification = Notification::factory()->create(['status' => Status::CANCELLED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
 
     $notification->refresh();
 
@@ -71,7 +74,7 @@ test('handle gracefully handles non-existent notification', function () {
     $factory->shouldNotReceive('resolve');
 
     $job = new SendNotificationJob('non-existent-id');
-    $job->handle($this->rateLimiter, $factory);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
 });
 
 test('handle does not call provider when another worker already claimed the notification', function () {
@@ -88,49 +91,63 @@ test('handle does not call provider when another worker already claimed the noti
     Notification::where('id', $notification->id)->update(['status' => Status::PROCESSING]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
 
     $notification->refresh();
 
     expect($notification->status)->toBe(Status::PROCESSING);
 });
 
-test('handle sets status to failed when provider returns failure', function () {
+test('handle sets status to retrying when provider returns retryable failure', function () {
     $provider = Mockery::mock(NotificationChannelInterface::class);
     $provider->shouldReceive('send')->andReturn(DeliveryResult::failure('Server error', true));
 
     $factory = Mockery::mock(ChannelProviderFactory::class);
     $factory->shouldReceive('resolve')->andReturn($provider);
 
-    $notification = Notification::factory()->create(['status' => Status::QUEUED]);
+    $retryStrategy = Mockery::mock(RetryStrategy::class);
+    $retryStrategy->shouldReceive('shouldRetry')->andReturn(true);
+    $retryStrategy->shouldReceive('calculateDelay')->andReturn(30);
+
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'max_attempts' => 3,
+    ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory);
+    $job->handle($this->rateLimiter, $factory, $retryStrategy);
 
     $notification->refresh();
 
-    expect($notification->status)->toBe(Status::FAILED);
-    expect($notification->failed_at)->not->toBeNull();
+    expect($notification->status)->toBe(Status::RETRYING);
+    expect($notification->next_retry_at)->not->toBeNull();
     expect($notification->error_message)->toBe('Server error');
     expect($notification->attempts)->toBe(1);
 });
 
-test('handle sets status to failed when provider throws unexpected exception', function () {
+test('handle sets status to retrying when provider throws unexpected exception', function () {
     $provider = Mockery::mock(NotificationChannelInterface::class);
     $provider->shouldReceive('send')->andThrow(new \RuntimeException('Unexpected failure'));
 
     $factory = Mockery::mock(ChannelProviderFactory::class);
     $factory->shouldReceive('resolve')->andReturn($provider);
 
-    $notification = Notification::factory()->create(['status' => Status::QUEUED]);
+    $retryStrategy = Mockery::mock(RetryStrategy::class);
+    $retryStrategy->shouldReceive('shouldRetry')->andReturn(true);
+    $retryStrategy->shouldReceive('calculateDelay')->andReturn(30);
+
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'max_attempts' => 3,
+    ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory);
+    $job->handle($this->rateLimiter, $factory, $retryStrategy);
 
     $notification->refresh();
 
-    expect($notification->status)->toBe(Status::FAILED);
-    expect($notification->failed_at)->not->toBeNull();
+    expect($notification->status)->toBe(Status::RETRYING);
+    expect($notification->next_retry_at)->not->toBeNull();
     expect($notification->error_message)->toBe('Unexpected failure');
 });
 
@@ -142,7 +159,7 @@ test('handle increments attempts and sets last_attempted_at on processing', func
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
 
     $notification->refresh();
 
