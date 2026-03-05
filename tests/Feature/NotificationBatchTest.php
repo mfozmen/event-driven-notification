@@ -191,3 +191,69 @@ test('batchStatus returns 404 for non-existent batch', function () {
 
     $response->assertStatus(404);
 });
+
+test('storeBatch creates single notification', function () {
+    $response = $this->postJson('/api/notifications/batch', [
+        'notifications' => [
+            [
+                'recipient' => '+905551234567',
+                'channel' => 'sms',
+                'content' => 'Hello',
+            ],
+        ],
+    ]);
+
+    $response->assertStatus(201)
+        ->assertJsonPath('data.count', 1);
+    $this->assertDatabaseCount('notifications', 1);
+});
+
+test('storeBatch returns 422 for mixed valid and invalid priorities', function () {
+    $response = $this->postJson('/api/notifications/batch', [
+        'notifications' => [
+            [
+                'recipient' => '+905551234567',
+                'channel' => 'sms',
+                'content' => 'Hello',
+                'priority' => 'high',
+            ],
+            [
+                'recipient' => '+905551234568',
+                'channel' => 'sms',
+                'content' => 'Hello',
+                'priority' => 'urgent',
+            ],
+        ],
+    ]);
+
+    $response->assertStatus(422);
+    $this->assertDatabaseCount('notifications', 0);
+});
+
+test('storeBatch returns 422 for email content exceeding 10000 chars', function () {
+    $response = $this->postJson('/api/notifications/batch', [
+        'notifications' => [
+            [
+                'recipient' => 'user@example.com',
+                'channel' => 'email',
+                'content' => str_repeat('a', 10001),
+            ],
+        ],
+    ]);
+
+    $response->assertStatus(422);
+});
+
+test('storeBatch returns 422 for push content exceeding 500 chars', function () {
+    $response = $this->postJson('/api/notifications/batch', [
+        'notifications' => [
+            [
+                'recipient' => 'device-token-123',
+                'channel' => 'push',
+                'content' => str_repeat('a', 501),
+            ],
+        ],
+    ]);
+
+    $response->assertStatus(422);
+});

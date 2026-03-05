@@ -18,13 +18,16 @@ class StoreNotificationRequest extends FormRequest
             'recipient' => ['required', 'string'],
             'channel' => ['required', Rule::enum(Channel::class)],
             'content' => ['required', 'string'],
-            'priority' => ['sometimes', Rule::enum(Priority::class)],
-            'idempotency_key' => ['sometimes', 'string'],
+            'priority' => ['sometimes', 'nullable', Rule::enum(Priority::class)],
+            'idempotency_key' => ['sometimes', 'nullable', 'string'],
         ];
 
-        if ($this->input('channel') === 'sms') {
-            $rules['content'][] = 'max:160';
-        }
+        match ($this->input('channel')) {
+            'sms' => $rules['content'][] = 'max:160',
+            'email' => $rules['content'][] = 'max:10000',
+            'push' => $rules['content'][] = 'max:500',
+            default => null,
+        };
 
         return $rules;
     }
