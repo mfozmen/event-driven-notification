@@ -30,7 +30,8 @@
       "Bash(composer show:*)",
       "Bash(composer require:*)",
       "Bash(docker compose:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(ls:*)"
     ]
   }
 }

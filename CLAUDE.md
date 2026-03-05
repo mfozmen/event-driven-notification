@@ -94,21 +94,27 @@ docker-compose exec app php artisan l5-swagger:generate
 
 ```
 app/
-  DTOs/           # Data transfer objects (e.g., CreateNotificationResult)
+  Channels/       # Channel providers (SmsProvider, EmailProvider, PushProvider, ChannelProviderFactory)
+  Contracts/      # Interfaces (NotificationChannelInterface)
+  DTOs/           # Data transfer objects (CreateNotificationResult, DeliveryResult, etc.)
   Enums/          # Channel, Priority, Status (backed string enums)
   Models/         # Notification
   Http/
-    Controllers/  # API controllers
+    Controllers/  # API controllers (NotificationController, BatchNotificationController)
     Middleware/   # CorrelationIdMiddleware
     Requests/     # Form requests
     Resources/    # API resources
-  Services/       # Business logic
-  Jobs/           # Queue jobs
-  Events/         # Domain events
-  Listeners/      # Event listeners
+  Services/       # Business logic (NotificationService, ChannelRateLimiter)
+  Jobs/           # Queue jobs (SendNotificationJob)
+  Events/         # Domain events (NotificationCreated)
+  Listeners/      # Event listeners (QueueNotificationListener)
 database/
   migrations/
   factories/
+docs/
+  IMPLEMENTATION_PLAN.md  # Phased implementation plan with progress tracking
+  E2E_TESTING.md          # Manual end-to-end testing checklist with curl commands
+  postman_collection.json # Postman collection for all API endpoints
 routes/
   api.php         # All API routes
   console.php     # Artisan commands
