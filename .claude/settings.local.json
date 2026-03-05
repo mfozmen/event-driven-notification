@@ -36,7 +36,9 @@
       "Bash(docker-compose up:*)",
       "Bash(docker-compose restart:*)",
       "Bash(docker-compose:*)",
-      "WebFetch(domain:localhost)"
+      "WebFetch(domain:localhost)",
+      "Bash(# Check Horizon completed/failed jobs\ncurl -s http://localhost:8080/horizon/api/stats 2>&1 | python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Jobs per minute:', d.get\\('jobsPerMinute'\\)\\); print\\('Recent completed:', d.get\\('recentlyCompleted', d.get\\('completedJobs','N/A'\\)\\)\\); print\\('Recent failed:', d.get\\('recentlyFailed', d.get\\('failedJobs','N/A'\\)\\)\\); print\\('Status:', d.get\\('status'\\)\\); print\\('Processes:', d.get\\('processes'\\)\\)\" 2>&1)",
+      "Bash(# Check Horizon completed jobs and failed jobs details\necho \"=== Recent Jobs ===\" && curl -s \"http://localhost:8080/horizon/api/jobs/recent\" 2>&1 | python -c \"import sys,json; data=json.load\\(sys.stdin\\); jobs=data.get\\('jobs',data\\) if isinstance\\(data,dict\\) else data; [print\\(j.get\\('name','?'\\), j.get\\('status','?'\\)\\) for j in \\(jobs[:5] if isinstance\\(jobs,list\\) else []\\)]\" 2>&1\necho \"=== Failed Jobs ===\" && curl -s \"http://localhost:8080/horizon/api/jobs/failed\" 2>&1 | python -c \"import sys,json; data=json.load\\(sys.stdin\\); jobs=data.get\\('jobs',data\\) if isinstance\\(data,dict\\) else data; print\\('Count:', len\\(jobs\\) if isinstance\\(jobs,list\\) else 'unknown'\\)\" 2>&1)"
     ]
   }
 }

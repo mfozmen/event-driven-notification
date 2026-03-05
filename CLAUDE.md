@@ -47,6 +47,10 @@ Don't wait for a separate edge case review — include them in the initial test 
 - Never depend on constants from other test files
 - Keep test files self-contained — a test file should be fully understandable without looking at any other test file
 
+### E2E Testing Principle
+
+Always use `docker compose down -v && docker compose up -d --build` for clean e2e test runs. The `--build` flag ensures the Docker image is rebuilt with the latest code changes. Without it, stale cached images may be used and bugs can be missed.
+
 ## Code Quality Principles
 
 - Write clean, low-complexity methods — extract method refactoring early
