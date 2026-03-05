@@ -69,7 +69,7 @@ class SendNotificationJob implements ShouldQueue
                     'delivered_at' => now(),
                 ]);
                 $this->safeLog($logger, $notification, 'delivered');
-                NotificationStatusUpdated::dispatch($notification);
+                $this->safeBroadcast($notification);
                 $circuitBreaker->recordSuccess($notification->channel);
             } else {
                 $circuitBreaker->recordFailure($notification->channel);
@@ -93,7 +93,7 @@ class SendNotificationJob implements ShouldQueue
                 'error_message' => $result->errorMessage,
             ]);
             $this->safeLog($logger, $notification, 'retrying', ['error' => $result->errorMessage, 'delay' => $delay]);
-            NotificationStatusUpdated::dispatch($notification);
+            $this->safeBroadcast($notification);
             $this->release($delay);
         } else {
             $notification->update([
@@ -102,7 +102,7 @@ class SendNotificationJob implements ShouldQueue
                 'error_message' => $result->errorMessage,
             ]);
             $this->safeLog($logger, $notification, 'permanently_failed', ['error' => $result->errorMessage]);
-            NotificationStatusUpdated::dispatch($notification);
+            $this->safeBroadcast($notification);
         }
     }
 
@@ -116,6 +116,19 @@ class SendNotificationJob implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error("Failed to log notification event: {$event}", [
                 'notification_id' => $notification->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function safeBroadcast(Notification $notification): void
+    {
+        try {
+            NotificationStatusUpdated::dispatch($notification);
+        } catch (\Throwable $e) {
+            Log::error('Failed to broadcast notification status update', [
+                'notification_id' => $notification->id,
+                'status' => $notification->status->value,
                 'error' => $e->getMessage(),
             ]);
         }
