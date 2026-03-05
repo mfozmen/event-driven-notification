@@ -70,7 +70,20 @@ class MetricsController extends Controller
                                 new OA\Property(property: 'push', type: 'object', properties: [new OA\Property(property: 'avg_ms', type: 'number', format: 'float', example: 80.1)]),
                             ]
                         ),
-                        new OA\Property(property: 'totals', type: 'object', additionalProperties: new OA\AdditionalProperties(type: 'integer')),
+                        new OA\Property(
+                            property: 'totals',
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'pending', type: 'integer', example: 5),
+                                new OA\Property(property: 'queued', type: 'integer', example: 12),
+                                new OA\Property(property: 'processing', type: 'integer', example: 3),
+                                new OA\Property(property: 'delivered', type: 'integer', example: 180),
+                                new OA\Property(property: 'failed', type: 'integer', example: 2),
+                                new OA\Property(property: 'retrying', type: 'integer', example: 1),
+                                new OA\Property(property: 'permanently_failed', type: 'integer', example: 4),
+                                new OA\Property(property: 'cancelled', type: 'integer', example: 7),
+                            ]
+                        ),
                         new OA\Property(property: 'timestamp', type: 'string', format: 'date-time'),
                     ]
                 )

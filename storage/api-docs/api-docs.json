@@ -301,10 +301,41 @@
                                             "type": "object"
                                         },
                                         "totals": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "integer"
-                                            }
+                                            "properties": {
+                                                "pending": {
+                                                    "type": "integer",
+                                                    "example": 5
+                                                },
+                                                "queued": {
+                                                    "type": "integer",
+                                                    "example": 12
+                                                },
+                                                "processing": {
+                                                    "type": "integer",
+                                                    "example": 3
+                                                },
+                                                "delivered": {
+                                                    "type": "integer",
+                                                    "example": 180
+                                                },
+                                                "failed": {
+                                                    "type": "integer",
+                                                    "example": 2
+                                                },
+                                                "retrying": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "permanently_failed": {
+                                                    "type": "integer",
+                                                    "example": 4
+                                                },
+                                                "cancelled": {
+                                                    "type": "integer",
+                                                    "example": 7
+                                                }
+                                            },
+                                            "type": "object"
                                         },
                                         "timestamp": {
                                             "type": "string",
