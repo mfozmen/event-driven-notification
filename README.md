@@ -229,3 +229,5 @@ Inside Docker prefix with `docker-compose exec app`.
 **Channel content limits** — SMS: 160 chars, Email: 10,000 chars, Push: 500 chars. Enforced at the validation layer for both single and batch endpoints.
 
 **Isolated worker pools per priority** — Instead of a single worker group processing all queues in order, each priority level has its own dedicated worker pool (high: 3 processes, normal: 2, low: 1). This prevents low-priority bulk notifications from blocking high-priority messages. In a single-pool setup, a worker processing a low-priority job can't pick up a new high-priority job until it finishes.
+
+**Horizontal scaling** — The Horizon service can be scaled independently with `docker compose up --scale horizon=N`. Each instance manages its own worker pool. The API and queue processing are already separate containers sharing the same codebase but with different entry points (`php-fpm` vs `php artisan horizon`), making horizontal scaling straightforward without code changes.
