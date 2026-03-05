@@ -11,10 +11,13 @@ use App\Services\ChannelRateLimiter;
 use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Redis;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    Redis::spy();
+
     $provider = Mockery::mock(NotificationChannelInterface::class);
     $provider->shouldReceive('send')->andReturn(DeliveryResult::successful('mock-msg-id'));
 
