@@ -123,6 +123,16 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        'json' => [
+            'driver' => 'monolog',
+            'handler' => StreamHandler::class,
+            'handler_with' => [
+                'stream' => storage_path('logs/laravel.log'),
+            ],
+            'formatter' => \App\Logging\JsonLogFormatter::class,
+            'level' => env('LOG_LEVEL', 'debug'),
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
