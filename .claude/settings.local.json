@@ -42,7 +42,9 @@
       "Bash(docker volume:*)",
       "Bash(./vendor/bin/pint:*)",
       "Bash(grep:*)",
-      "Bash(DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan:*)"
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan:*)",
+      "Bash(composer audit:*)",
+      "Bash(composer:*)"
     ]
   }
 }
