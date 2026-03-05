@@ -227,9 +227,9 @@ Phase 4 was too large — Horizon setup, event/listener/job chain, and rate limi
 
 ### Design decisions:
 - **Max retries**: 3 attempts (configurable via `max_attempts` column)
-- **Backoff**: Exponential with jitter — `base_delay * 2^(attempt-1) + random(0, 1000ms)`
-  - Attempt 1: ~30s, Attempt 2: ~60s, Attempt 3: ~120s
-  - Jitter prevents thundering herd when many notifications fail simultaneously
+- **Backoff**: Exponential with jitter — `base_delay * 2^(attempt-1) + random(0, base_delay)`
+  - Attempt 1: 30-60s, Attempt 2: 60-90s, Attempt 3: 120-150s (with default 30s base delay)
+  - Jitter is proportional to base delay, prevents thundering herd when many notifications fail simultaneously
 - **Retryable failures**: HTTP 5xx, timeouts, connection errors
 - **Non-retryable**: HTTP 4xx (bad request → `permanently_failed` immediately)
 - **Primary retry mechanism**: `$this->release($calculatedDelay)` — Laravel's native job release

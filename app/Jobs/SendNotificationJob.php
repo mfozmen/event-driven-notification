@@ -3,9 +3,11 @@
 namespace App\Jobs;
 
 use App\Channels\ChannelProviderFactory;
+use App\DTOs\DeliveryResult;
 use App\Enums\Status;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\RetryStrategy;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -17,7 +19,7 @@ class SendNotificationJob implements ShouldQueue
         public string $notificationId,
     ) {}
 
-    public function handle(ChannelRateLimiter $rateLimiter, ChannelProviderFactory $factory): void
+    public function handle(ChannelRateLimiter $rateLimiter, ChannelProviderFactory $factory, RetryStrategy $retryStrategy): void
     {
         $notification = Notification::find($this->notificationId);
 
@@ -25,7 +27,7 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
-        if ($notification->status !== Status::QUEUED) {
+        if (! in_array($notification->status, [Status::QUEUED, Status::RETRYING])) {
             return;
         }
 
@@ -49,17 +51,29 @@ class SendNotificationJob implements ShouldQueue
                     'delivered_at' => now(),
                 ]);
             } else {
-                $notification->update([
-                    'status' => Status::FAILED,
-                    'failed_at' => now(),
-                    'error_message' => $result->errorMessage,
-                ]);
+                $this->handleFailure($notification, $result, $retryStrategy);
             }
         } catch (\Throwable $e) {
+            $result = DeliveryResult::failure($e->getMessage(), true);
+            $this->handleFailure($notification, $result, $retryStrategy);
+        }
+    }
+
+    private function handleFailure(Notification $notification, DeliveryResult $result, RetryStrategy $retryStrategy): void
+    {
+        if ($retryStrategy->shouldRetry($result, $notification->attempts, $notification->max_attempts)) {
+            $delay = $retryStrategy->calculateDelay($notification->attempts);
             $notification->update([
-                'status' => Status::FAILED,
+                'status' => Status::RETRYING,
+                'next_retry_at' => now()->addSeconds($delay),
+                'error_message' => $result->errorMessage,
+            ]);
+            $this->release($delay);
+        } else {
+            $notification->update([
+                'status' => Status::PERMANENTLY_FAILED,
                 'failed_at' => now(),
-                'error_message' => $e->getMessage(),
+                'error_message' => $result->errorMessage,
             ]);
         }
     }
@@ -67,7 +81,7 @@ class SendNotificationJob implements ShouldQueue
     private function claimNotification(Notification $notification): bool
     {
         $affectedRows = Notification::where('id', $notification->id)
-            ->where('status', Status::QUEUED)
+            ->whereIn('status', [Status::QUEUED, Status::RETRYING])
             ->update([
                 'status' => Status::PROCESSING,
                 'attempts' => $notification->attempts + 1,

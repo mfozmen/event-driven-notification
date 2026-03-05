@@ -179,3 +179,98 @@ docker compose exec app php artisan horizon:status
 ```
 
 **Expected:** `Horizon is running.`
+
+---
+
+## Retry Logic Tests
+
+These tests verify the retry mechanism with exponential backoff. They require changing webhook.site responses between steps.
+
+### 10. Retryable Failure → Retry → Deliver
+
+1. On webhook.site, click **Edit** and set **Status Code** to `500`. Click **Save**.
+2. Create a notification:
+   ```bash
+   curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "Retry test"}'
+   ```
+3. Wait 5 seconds, then check the notification status:
+   ```bash
+   curl -s http://localhost:8080/api/notifications/{id}
+   ```
+   **Expected:** `status` is `retrying`, `attempts` is `1`, `next_retry_at` is set, `error_message` contains the failure reason.
+
+4. On webhook.site, click **Edit** and change **Status Code** back to `202`. Click **Save**.
+5. Wait for the retry delay (~30-60s for the first retry), then check again:
+   ```bash
+   curl -s http://localhost:8080/api/notifications/{id}
+   ```
+   **Expected:** `status` is `delivered`, `attempts` is `2`, `delivered_at` is set.
+
+### 11. Non-Retryable Failure → Permanently Failed
+
+1. On webhook.site, click **Edit** and set **Status Code** to `400`. Click **Save**.
+2. Create a notification:
+   ```bash
+   curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "Non-retryable test"}'
+   ```
+3. Wait 5 seconds, then check:
+   ```bash
+   curl -s http://localhost:8080/api/notifications/{id}
+   ```
+   **Expected:** `status` is `permanently_failed`, `attempts` is `1`, `failed_at` is set. No retry happens — 4xx errors are non-retryable.
+
+### 12. Max Attempts Exhaustion
+
+1. On webhook.site, click **Edit** and set **Status Code** to `500`. Keep it at 500 for the entire test.
+2. Create a notification (default `max_attempts` is 3):
+   ```bash
+   curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "Max attempts test"}'
+   ```
+3. Poll the notification status over time. The retry cycle with exponential backoff (base delay 30s + jitter):
+   - **After ~5s:** `status` is `retrying`, `attempts` is `1`
+   - **After ~1 min:** `status` is `retrying`, `attempts` is `2` (retry 1 delay: 30-60s)
+   - **After ~2-3 min:** `status` is `permanently_failed`, `attempts` is `3` (retry 2 delay: 60-90s)
+   ```bash
+   # Poll every 30 seconds
+   curl -s http://localhost:8080/api/notifications/{id} | grep -o '"status":"[^"]*","attempts":[0-9]*'
+   ```
+   **Expected final state:** `status` is `permanently_failed`, `attempts` is `3`, `failed_at` is set, `error_message` is set.
+
+4. Remember to set webhook.site back to `202` after testing.
+
+### 13. Verify in Horizon Dashboard
+
+After triggering retry failures, open http://localhost:8080/horizon:
+
+- **Recent Jobs tab:** You should see completed jobs (delivered) and failed jobs (permanently_failed).
+- **Retry timing:** Check job timestamps — the gap between attempts should roughly match the exponential backoff (30-60s, 60-90s).
+- **Supervisors:** All 3 supervisors should be active: `notification-worker-high`, `notification-worker-normal`, `notification-worker-low`.
+
+### 14. Verify in Redis Commander
+
+Open http://localhost:8082 and inspect:
+
+- **Rate limiter keys:** Look for keys matching `rate_limit:sms:*`, `rate_limit:email:*`, `rate_limit:push:*`. These appear during active sending and expire after 2 seconds.
+- **Queue keys:** Look for `queues:high`, `queues:normal`, `queues:low` — these hold pending jobs.
+- **Horizon keys:** Keys prefixed with `horizon:` contain supervisor state, job metrics, and worker data.
+
+### 15. Verify in Adminer
+
+Open http://localhost:8081, connect with Server `mysql`, User `laravel`, Password `secret`, Database `notification_db`:
+
+1. Run this query to inspect retry fields:
+   ```sql
+   SELECT id, status, attempts, max_attempts, next_retry_at, last_attempted_at, failed_at, error_message
+   FROM notifications
+   ORDER BY created_at DESC
+   LIMIT 10;
+   ```
+2. **For retrying notifications:** `attempts` < `max_attempts`, `next_retry_at` is a future timestamp, `error_message` describes the failure.
+3. **For permanently_failed notifications:** `attempts` = `max_attempts`, `failed_at` is set, `next_retry_at` may hold the last retry timestamp.
+4. **For delivered notifications:** `attempts` ≥ 1, `delivered_at` is set, `failed_at` is null.
