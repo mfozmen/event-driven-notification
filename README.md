@@ -341,6 +341,13 @@ php artisan l5-swagger:generate
 
 Inside Docker prefix with `docker-compose exec app`.
 
+### Code Quality Metrics
+
+- **251 tests**, 914 assertions
+- **PHPStan Level 6**: 0 errors
+- **PHP Insights**: Code 93.3%, Complexity 94.9%, Architecture 81.3%, Style 92.7%
+- **0 known security vulnerabilities** (`composer audit`)
+
 ---
 
 ## Artisan Commands
@@ -428,5 +435,7 @@ The current architecture handles moderate scale well. At millions of notificatio
 **Swagger/OpenAPI annotations** — All endpoints annotated using PHP 8 attributes (`OpenApi\Attributes`). Four tag groups organize the API: Notifications, Batch, Templates, Observability. The `POST /api/notifications` annotation reflects optional `content` (when using templates), `scheduled_at`, `template_id`, and `template_variables` fields. Interactive docs available at `/api/documentation`.
 
 **WebSocket real-time updates** — `NotificationStatusUpdated` event implements `ShouldBroadcast`, broadcasting on a public `notifications.{notificationId}` channel via Laravel Reverb. Fired on every status transition: `queued` (from listener), `delivered`, `retrying`, `permanently_failed` (from job), and `cancelled` (from service). Payload includes `id`, `status`, `attempts`, and `updated_at`. Uses public channels for simplicity — any Pusher-compatible WebSocket client can subscribe. In production, use private channels with authentication to restrict access to authorized clients only. Reverb runs as a separate Docker service on port 8085.
+
+**Inbound API rate limiting** — API routes are protected with Laravel's `ThrottleRequests` middleware at 60 requests per minute per IP. This is separate from the outbound channel rate limiting (100 messages/second/channel) — inbound protects the API from abuse, outbound protects external providers from overload.
 
 **GitHub Actions CI** — Automated pipeline runs on push and PR to `main`. Steps: Pint code style check, PHPStan level 6 static analysis, full Pest test suite. Uses SQLite in-memory (same as local testing) — no MySQL/Redis services needed in CI. PHP 8.4 with `shivammathur/setup-php`.
