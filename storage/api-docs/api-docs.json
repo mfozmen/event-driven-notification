@@ -112,6 +112,213 @@
                 }
             }
         },
+        "/api/health": {
+            "get": {
+                "tags": [
+                    "Observability"
+                ],
+                "summary": "Health check",
+                "description": "Returns service health status for database, Redis, and Horizon.",
+                "operationId": "24b74a809d1f5913ec7794d867bc24f4",
+                "responses": {
+                    "200": {
+                        "description": "All services healthy",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "healthy"
+                                        },
+                                        "services": {
+                                            "properties": {
+                                                "database": {
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "example": "up"
+                                                        },
+                                                        "latency_ms": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 1.23
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "redis": {
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "example": "up"
+                                                        },
+                                                        "latency_ms": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 0.45
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "horizon": {
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "example": "running"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "timestamp": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "One or more services degraded"
+                    }
+                }
+            }
+        },
+        "/api/metrics": {
+            "get": {
+                "tags": [
+                    "Observability"
+                ],
+                "summary": "System metrics",
+                "description": "Returns queue depths, delivery counts, latency, and notification totals.",
+                "operationId": "c0f1186ba74b30d4ac71735318f48807",
+                "responses": {
+                    "200": {
+                        "description": "System metrics",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "queue_depths": {
+                                            "properties": {
+                                                "high": {
+                                                    "type": "integer",
+                                                    "example": 0
+                                                },
+                                                "normal": {
+                                                    "type": "integer",
+                                                    "example": 5
+                                                },
+                                                "low": {
+                                                    "type": "integer",
+                                                    "example": 2
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "deliveries": {
+                                            "properties": {
+                                                "sms": {
+                                                    "properties": {
+                                                        "success": {
+                                                            "type": "integer",
+                                                            "example": 100
+                                                        },
+                                                        "failure": {
+                                                            "type": "integer",
+                                                            "example": 3
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "email": {
+                                                    "properties": {
+                                                        "success": {
+                                                            "type": "integer",
+                                                            "example": 50
+                                                        },
+                                                        "failure": {
+                                                            "type": "integer",
+                                                            "example": 1
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "push": {
+                                                    "properties": {
+                                                        "success": {
+                                                            "type": "integer",
+                                                            "example": 75
+                                                        },
+                                                        "failure": {
+                                                            "type": "integer",
+                                                            "example": 2
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "latency": {
+                                            "properties": {
+                                                "sms": {
+                                                    "properties": {
+                                                        "avg_ms": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 120.5
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "email": {
+                                                    "properties": {
+                                                        "avg_ms": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 95.3
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "push": {
+                                                    "properties": {
+                                                        "avg_ms": {
+                                                            "type": "number",
+                                                            "format": "float",
+                                                            "example": 80.1
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "totals": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "timestamp": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/notifications": {
             "get": {
                 "tags": [
@@ -214,8 +421,7 @@
                             "schema": {
                                 "required": [
                                     "recipient",
-                                    "channel",
-                                    "content"
+                                    "channel"
                                 ],
                                 "properties": {
                                     "recipient": {
@@ -232,7 +438,8 @@
                                     },
                                     "content": {
                                         "type": "string",
-                                        "example": "Hello, world!"
+                                        "example": "Hello, world!",
+                                        "nullable": true
                                     },
                                     "priority": {
                                         "type": "string",
@@ -245,6 +452,20 @@
                                     },
                                     "idempotency_key": {
                                         "type": "string",
+                                        "nullable": true
+                                    },
+                                    "scheduled_at": {
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "nullable": true
+                                    },
+                                    "template_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "template_variables": {
+                                        "type": "object",
                                         "nullable": true
                                     }
                                 },
@@ -325,6 +546,273 @@
                     }
                 }
             }
+        },
+        "/api/notifications/{id}/trace": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get notification trace",
+                "description": "Returns an ordered list of status transition log entries for a notification.",
+                "operationId": "2b0c522455b5e5024fa9b81c6db617e3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Trace log entries",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "event": {
+                                                        "type": "string",
+                                                        "example": "created"
+                                                    },
+                                                    "correlation_id": {
+                                                        "type": "string",
+                                                        "example": "abc-123"
+                                                    },
+                                                    "details": {
+                                                        "type": "object",
+                                                        "nullable": true
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string",
+                                                        "format": "date-time"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Notification not found"
+                    }
+                }
+            }
+        },
+        "/api/templates": {
+            "get": {
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "List templates",
+                "description": "Returns all notification templates.",
+                "operationId": "f1faaa62aa1ab331b2d37021c96c9751",
+                "responses": {
+                    "200": {
+                        "description": "List of templates"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create a template",
+                "description": "Create a new notification template.",
+                "operationId": "822571666ffc158cdfaef5e1f9f93c03",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "channel",
+                                    "body_template",
+                                    "variables"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "welcome-sms"
+                                    },
+                                    "channel": {
+                                        "type": "string",
+                                        "enum": [
+                                            "sms",
+                                            "email",
+                                            "push"
+                                        ]
+                                    },
+                                    "body_template": {
+                                        "type": "string",
+                                        "example": "Hello {{name}}, welcome to {{company}}!"
+                                    },
+                                    "variables": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "name",
+                                            "company"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Template created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/templates/{template}": {
+            "get": {
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template by ID",
+                "operationId": "947424fc850182550e11bb89618667d9",
+                "parameters": [
+                    {
+                        "name": "template",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Template details"
+                    },
+                    "404": {
+                        "description": "Template not found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Update a template",
+                "operationId": "073f45e312a7b942720edb46ea1d1d18",
+                "parameters": [
+                    {
+                        "name": "template",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "channel",
+                                    "body_template",
+                                    "variables"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "welcome-sms-v2"
+                                    },
+                                    "channel": {
+                                        "type": "string",
+                                        "enum": [
+                                            "sms",
+                                            "email",
+                                            "push"
+                                        ]
+                                    },
+                                    "body_template": {
+                                        "type": "string",
+                                        "example": "Hi {{name}}, thanks for joining {{company}}!"
+                                    },
+                                    "variables": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "name",
+                                            "company"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Template updated"
+                    },
+                    "404": {
+                        "description": "Template not found"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Delete a template",
+                "operationId": "02a7c63ee388aa9907a2eacdbabbda09",
+                "parameters": [
+                    {
+                        "name": "template",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Template deleted"
+                    },
+                    "404": {
+                        "description": "Template not found"
+                    },
+                    "409": {
+                        "description": "Template is referenced by existing notifications"
+                    }
+                }
+            }
         }
     },
     "tags": [
@@ -335,6 +823,14 @@
         {
             "name": "Batch",
             "description": "Batch operations"
+        },
+        {
+            "name": "Templates",
+            "description": "Notification template operations"
+        },
+        {
+            "name": "Observability",
+            "description": "Health check and metrics"
         }
     ]
 }

@@ -7,9 +7,76 @@ use App\Enums\Status;
 use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Redis;
+use OpenApi\Attributes as OA;
 
 class MetricsController extends Controller
 {
+    #[OA\Get(
+        path: '/api/metrics',
+        summary: 'System metrics',
+        tags: ['Observability'],
+        description: 'Returns queue depths, delivery counts, latency, and notification totals.',
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'System metrics',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(
+                            property: 'queue_depths',
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'high', type: 'integer', example: 0),
+                                new OA\Property(property: 'normal', type: 'integer', example: 5),
+                                new OA\Property(property: 'low', type: 'integer', example: 2),
+                            ]
+                        ),
+                        new OA\Property(
+                            property: 'deliveries',
+                            type: 'object',
+                            properties: [
+                                new OA\Property(
+                                    property: 'sms',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'success', type: 'integer', example: 100),
+                                        new OA\Property(property: 'failure', type: 'integer', example: 3),
+                                    ]
+                                ),
+                                new OA\Property(
+                                    property: 'email',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'success', type: 'integer', example: 50),
+                                        new OA\Property(property: 'failure', type: 'integer', example: 1),
+                                    ]
+                                ),
+                                new OA\Property(
+                                    property: 'push',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'success', type: 'integer', example: 75),
+                                        new OA\Property(property: 'failure', type: 'integer', example: 2),
+                                    ]
+                                ),
+                            ]
+                        ),
+                        new OA\Property(
+                            property: 'latency',
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'sms', type: 'object', properties: [new OA\Property(property: 'avg_ms', type: 'number', format: 'float', example: 120.5)]),
+                                new OA\Property(property: 'email', type: 'object', properties: [new OA\Property(property: 'avg_ms', type: 'number', format: 'float', example: 95.3)]),
+                                new OA\Property(property: 'push', type: 'object', properties: [new OA\Property(property: 'avg_ms', type: 'number', format: 'float', example: 80.1)]),
+                            ]
+                        ),
+                        new OA\Property(property: 'totals', type: 'object', additionalProperties: new OA\AdditionalProperties(type: 'integer')),
+                        new OA\Property(property: 'timestamp', type: 'string', format: 'date-time'),
+                    ]
+                )
+            ),
+        ]
+    )]
     public function __invoke(): JsonResponse
     {
         return response()->json([

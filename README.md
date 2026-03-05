@@ -1,3 +1,5 @@
+![CI](https://github.com/{owner}/{repo}/actions/workflows/ci.yml/badge.svg)
+
 # Event-Driven Notification System
 
 A scalable notification system built with Laravel 11 that processes and delivers messages through SMS, Email, and Push channels. Handles high throughput, reliable delivery with retries, and real-time status tracking.
@@ -387,3 +389,7 @@ The current architecture handles moderate scale well. At millions of notificatio
 **Scheduled notifications** — Notifications with a future `scheduled_at` stay in `pending` status. The `QueueNotificationListener` checks `scheduled_at` and skips dispatch if it's in the future. The `notifications:process-scheduled` command runs every minute, picks up pending notifications where `scheduled_at <= now()`, and dispatches them to the correct priority queue. Past `scheduled_at` values are queued immediately on creation. The `notifications:process-stuck` command has a `whereNull('scheduled_at')` guard so it doesn't interfere with scheduled pending notifications.
 
 **Template system** — `NotificationTemplate` model with `render(array $variables): string` method performs `{{variable}}` substitution. Templates are managed via full CRUD at `/api/templates`. When creating a notification with `template_id`, the service resolves the template, renders content with provided `template_variables`, and stores the rendered string in the `content` field. Missing variables return `422`. If both `template_id` and `content` are provided, the template takes precedence. Templates referenced by notifications cannot be deleted (returns `409`). The foreign key uses `nullOnDelete` as a safety net — the rendered content is already stored in the notification.
+
+**Swagger/OpenAPI annotations** — All endpoints annotated using PHP 8 attributes (`OpenApi\Attributes`). Four tag groups organize the API: Notifications, Batch, Templates, Observability. The `POST /api/notifications` annotation reflects optional `content` (when using templates), `scheduled_at`, `template_id`, and `template_variables` fields. Interactive docs available at `/api/documentation`.
+
+**GitHub Actions CI** — Automated pipeline runs on push and PR to `main`. Steps: Pint code style check, PHPStan level 6 static analysis, full Pest test suite. Uses SQLite in-memory (same as local testing) — no MySQL/Redis services needed in CI. PHP 8.4 with `shivammathur/setup-php`.
