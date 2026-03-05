@@ -1,0 +1,340 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Event-Driven Notification API",
+        "description": "A scalable notification system that processes and delivers messages through SMS, Email, and Push channels.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080",
+            "description": "Local"
+        }
+    ],
+    "paths": {
+        "/api/notifications/batch": {
+            "post": {
+                "tags": [
+                    "Batch"
+                ],
+                "summary": "Create a batch of notifications",
+                "description": "Create up to 1000 notifications in a single request.",
+                "operationId": "3ae71ed8bdc282b250f25e4cf7f21382",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "notifications"
+                                ],
+                                "properties": {
+                                    "notifications": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "recipient",
+                                                "channel",
+                                                "content"
+                                            ],
+                                            "properties": {
+                                                "recipient": {
+                                                    "type": "string",
+                                                    "example": "+905551234567"
+                                                },
+                                                "channel": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "sms",
+                                                        "email",
+                                                        "push"
+                                                    ]
+                                                },
+                                                "content": {
+                                                    "type": "string",
+                                                    "example": "Hello!"
+                                                },
+                                                "priority": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "high",
+                                                        "normal",
+                                                        "low"
+                                                    ],
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "maxItems": 1000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Batch created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/notifications/batch/{batchId}": {
+            "get": {
+                "tags": [
+                    "Batch"
+                ],
+                "summary": "Get batch status",
+                "description": "Returns total count and per-status breakdown for a batch.",
+                "operationId": "4904ed3fa2cb5f30a075d7a13b048480",
+                "parameters": [
+                    {
+                        "name": "batchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Batch status"
+                    },
+                    "404": {
+                        "description": "Batch not found"
+                    }
+                }
+            }
+        },
+        "/api/notifications": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List notifications",
+                "description": "List notifications with optional filters and cursor-based pagination.",
+                "operationId": "911565ad9aff9ba7eded3f189509e578",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pending",
+                                "queued",
+                                "processing",
+                                "delivered",
+                                "failed",
+                                "retrying",
+                                "permanently_failed",
+                                "cancelled"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "sms",
+                                "email",
+                                "push"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "date_from",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "date_to",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 15,
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "nullable": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list of notifications"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Create a notification",
+                "description": "Create a single notification. Returns 200 with existing notification if idempotency_key is duplicate.",
+                "operationId": "91f8e779a9e46cb5cdda969e5a928a94",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "recipient",
+                                    "channel",
+                                    "content"
+                                ],
+                                "properties": {
+                                    "recipient": {
+                                        "type": "string",
+                                        "example": "+905551234567"
+                                    },
+                                    "channel": {
+                                        "type": "string",
+                                        "enum": [
+                                            "sms",
+                                            "email",
+                                            "push"
+                                        ]
+                                    },
+                                    "content": {
+                                        "type": "string",
+                                        "example": "Hello, world!"
+                                    },
+                                    "priority": {
+                                        "type": "string",
+                                        "enum": [
+                                            "high",
+                                            "normal",
+                                            "low"
+                                        ],
+                                        "nullable": true
+                                    },
+                                    "idempotency_key": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Notification created"
+                    },
+                    "200": {
+                        "description": "Duplicate idempotency key — existing notification returned"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/api/notifications/{id}": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get notification by ID",
+                "operationId": "f2edf725f41dd6c9a9338a6a7b39d779",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification details"
+                    },
+                    "404": {
+                        "description": "Notification not found"
+                    }
+                }
+            }
+        },
+        "/api/notifications/{id}/cancel": {
+            "patch": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Cancel a notification",
+                "description": "Cancel a notification in pending, queued, or retrying status.",
+                "operationId": "d732b31326d0804ebd5f6f67239070e9",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification cancelled"
+                    },
+                    "404": {
+                        "description": "Notification not found"
+                    },
+                    "409": {
+                        "description": "Notification cannot be cancelled"
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Notifications",
+            "description": "Single notification operations"
+        },
+        {
+            "name": "Batch",
+            "description": "Batch operations"
+        }
+    ]
+}

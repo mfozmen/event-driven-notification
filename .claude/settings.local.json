@@ -35,7 +35,8 @@
       "Bash(docker exec:*)",
       "Bash(docker-compose up:*)",
       "Bash(docker-compose restart:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "WebFetch(domain:localhost)"
     ]
   }
 }
