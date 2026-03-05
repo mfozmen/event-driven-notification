@@ -27,7 +27,11 @@ class QueueNotificationListener
 
             $this->logger->log($notification, 'queued');
 
-            NotificationStatusUpdated::dispatch($notification);
+            try {
+                NotificationStatusUpdated::dispatch($notification);
+            } catch (\Throwable) {
+                // Broadcasting failure should not affect queue dispatch
+            }
 
             SendNotificationJob::dispatch($notification->id)
                 ->onQueue($notification->priority->value);

@@ -154,7 +154,11 @@ class NotificationService
 
         $this->logger->log($notification, 'cancelled');
 
-        NotificationStatusUpdated::dispatch($notification);
+        try {
+            NotificationStatusUpdated::dispatch($notification);
+        } catch (\Throwable) {
+            // Broadcasting failure should not affect cancellation
+        }
 
         return $notification;
     }

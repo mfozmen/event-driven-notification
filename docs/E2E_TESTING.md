@@ -25,10 +25,11 @@ After `docker compose up -d`, verify all services are accessible. If any of thes
 
 | Service | URL | Expected |
 |---------|-----|----------|
-| **Swagger UI** | http://localhost:8080/api/documentation | Loads with all 6 endpoints documented (notifications CRUD + batch) |
+| **Swagger UI** | http://localhost:8080/api/documentation | Loads with all endpoints documented under 4 tags: Notifications, Batch, Templates, Observability |
 | **Horizon Dashboard** | http://localhost:8080/horizon | Loads, shows 3 supervisors: `notification-worker-high`, `notification-worker-normal`, `notification-worker-low` |
 | **Adminer** | http://localhost:8081 | Loads login page. Connect with: Server `mysql`, User `laravel`, Password `secret`, Database `notification_db` |
 | **Redis Commander** | http://localhost:8082 | Loads, shows Redis keys (queues, horizon data, rate limiter counters) |
+| **Reverb** (WebSocket) | ws://localhost:8085 | Real-time notification status updates via WebSocket |
 
 Swagger UI at http://localhost:8080/api/documentation must render without errors — no "Unable to render this definition" or "The provided definition does not specify a valid version field" messages. All endpoints should be visible and expandable. Verify by checking that the page shows the API title "Event-Driven Notification API" and lists all 6 operations (GET/POST/PATCH across notifications and batch).
 
@@ -528,9 +529,44 @@ curl -s -w "\nHTTP_STATUS: %{http_code}" -X DELETE http://localhost:8080/api/tem
 
 ---
 
+## WebSocket Verification (Phase 9)
+
+### 35. Verify Reverb Is Running
+
+```bash
+docker compose logs reverb --tail=5
+```
+
+**Expected:** Logs show Reverb started successfully, listening on `0.0.0.0:8085`.
+
+```bash
+docker compose ps reverb
+```
+
+**Expected:** Status is `running` (or `Up`).
+
+**Note:** WebSocket functionality is tested via unit/feature tests (9 tests covering broadcast channel, payload, and event dispatching on all status transitions). Manual WebSocket testing requires a client like `wscat` or browser console:
+
+```bash
+# Install wscat (requires Node.js)
+npm install -g wscat
+
+# Connect to Reverb
+wscat -c ws://localhost:8085/app/notification-key
+```
+
+Once connected, subscribe to a channel by sending:
+```json
+{"event":"pusher:subscribe","data":{"channel":"notifications.{notificationId}"}}
+```
+
+Then create or process a notification via curl — you should see `notification.status.updated` events arrive in real-time.
+
+---
+
 ## Database Verification
 
-### 35. Verify in Adminer
+### 36. Verify in Adminer
 
 Open http://localhost:8081, connect with Server `mysql`, User `laravel`, Password `secret`, Database `notification_db`:
 

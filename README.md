@@ -252,18 +252,37 @@ The `content` field is rendered from the template: `"Hello Alice, welcome to Acm
 
 ### WebSocket Real-Time Updates
 
-Subscribe to notification status changes in real-time via WebSocket (Laravel Reverb):
+Subscribe to notification status changes in real-time via WebSocket (Laravel Reverb).
 
-- **Channel**: `notifications.{notificationId}` (public)
-- **Event**: `notification.status.updated`
-- **Payload**: `{ "id": "uuid", "status": "delivered", "attempts": 1, "updated_at": "ISO8601" }`
-
-Events are broadcast on every status transition: `queued`, `delivered`, `retrying`, `permanently_failed`, `cancelled`.
-
-Connect via any Pusher-compatible WebSocket client:
+**Connection:**
 ```
 ws://localhost:8085/app/notification-key
 ```
+
+**Channel:** `notifications.{notificationId}` (public)
+
+**Event:** `notification.status.updated`
+
+**Payload:**
+```json
+{
+  "id": "019538a1-7b2c-7e3a-9f4d-1a2b3c4d5e6f",
+  "status": "delivered",
+  "attempts": 1,
+  "updated_at": "2026-03-05T12:00:00+00:00"
+}
+```
+
+Events are broadcast on every status transition: `queued`, `delivered`, `retrying`, `permanently_failed`, `cancelled`.
+
+**How to subscribe** (using any Pusher-compatible client):
+
+1. Connect to `ws://localhost:8085/app/notification-key`
+2. Subscribe to channel `notifications.{notificationId}` where `{notificationId}` is the UUID returned when creating the notification
+3. Listen for the `notification.status.updated` event
+4. The payload includes the current `status`, `attempts` count, and `updated_at` timestamp
+
+Works with [Laravel Echo](https://laravel.com/docs/broadcasting#client-side-installation), [Pusher JS](https://github.com/pusher/pusher-js), `wscat`, or any WebSocket client that speaks the Pusher protocol.
 
 ---
 
@@ -408,6 +427,6 @@ The current architecture handles moderate scale well. At millions of notificatio
 
 **Swagger/OpenAPI annotations** — All endpoints annotated using PHP 8 attributes (`OpenApi\Attributes`). Four tag groups organize the API: Notifications, Batch, Templates, Observability. The `POST /api/notifications` annotation reflects optional `content` (when using templates), `scheduled_at`, `template_id`, and `template_variables` fields. Interactive docs available at `/api/documentation`.
 
-**WebSocket real-time updates** — `NotificationStatusUpdated` event implements `ShouldBroadcast`, broadcasting on a public `notifications.{notificationId}` channel via Laravel Reverb. Fired on every status transition: `queued` (from listener), `delivered`, `retrying`, `permanently_failed` (from job), and `cancelled` (from service). Payload includes `id`, `status`, `attempts`, and `updated_at`. Uses public channels for simplicity — any Pusher-compatible WebSocket client can subscribe. Reverb runs as a separate Docker service on port 8085.
+**WebSocket real-time updates** — `NotificationStatusUpdated` event implements `ShouldBroadcast`, broadcasting on a public `notifications.{notificationId}` channel via Laravel Reverb. Fired on every status transition: `queued` (from listener), `delivered`, `retrying`, `permanently_failed` (from job), and `cancelled` (from service). Payload includes `id`, `status`, `attempts`, and `updated_at`. Uses public channels for simplicity — any Pusher-compatible WebSocket client can subscribe. In production, use private channels with authentication to restrict access to authorized clients only. Reverb runs as a separate Docker service on port 8085.
 
 **GitHub Actions CI** — Automated pipeline runs on push and PR to `main`. Steps: Pint code style check, PHPStan level 6 static analysis, full Pest test suite. Uses SQLite in-memory (same as local testing) — no MySQL/Redis services needed in CI. PHP 8.4 with `shivammathur/setup-php`.
