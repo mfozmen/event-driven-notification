@@ -41,7 +41,8 @@
       "Bash(# Check Horizon completed jobs and failed jobs details\necho \"=== Recent Jobs ===\" && curl -s \"http://localhost:8080/horizon/api/jobs/recent\" 2>&1 | python -c \"import sys,json; data=json.load\\(sys.stdin\\); jobs=data.get\\('jobs',data\\) if isinstance\\(data,dict\\) else data; [print\\(j.get\\('name','?'\\), j.get\\('status','?'\\)\\) for j in \\(jobs[:5] if isinstance\\(jobs,list\\) else []\\)]\" 2>&1\necho \"=== Failed Jobs ===\" && curl -s \"http://localhost:8080/horizon/api/jobs/failed\" 2>&1 | python -c \"import sys,json; data=json.load\\(sys.stdin\\); jobs=data.get\\('jobs',data\\) if isinstance\\(data,dict\\) else data; print\\('Count:', len\\(jobs\\) if isinstance\\(jobs,list\\) else 'unknown'\\)\" 2>&1)",
       "Bash(docker volume:*)",
       "Bash(./vendor/bin/pint:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan:*)"
     ]
   }
 }
