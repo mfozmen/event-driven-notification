@@ -104,3 +104,12 @@ test('index returns 422 for invalid filter values', function () {
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['status']);
 });
+
+test('index returns results when cursor is empty string', function () {
+    Notification::factory()->count(3)->create();
+
+    $response = $this->getJson('/api/notifications?cursor=');
+
+    $response->assertStatus(200)
+        ->assertJsonCount(3, 'data');
+});
