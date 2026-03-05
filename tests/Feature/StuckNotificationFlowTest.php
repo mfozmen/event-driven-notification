@@ -11,8 +11,13 @@ use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Redis;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    Redis::spy();
+});
 
 test('stuck retrying notification gets re-dispatched and delivered', function () {
     Queue::fake();

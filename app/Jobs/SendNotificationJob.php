@@ -11,6 +11,7 @@ use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Redis;
 
 class SendNotificationJob implements ShouldQueue
 {
@@ -48,9 +49,13 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
+        $start = microtime(true);
+
         try {
             $provider = $factory->resolve($notification->channel);
             $result = $provider->send($notification);
+
+            $this->recordMetrics($notification, $result->success, $start);
 
             if ($result->success) {
                 $notification->update([
@@ -63,6 +68,7 @@ class SendNotificationJob implements ShouldQueue
                 $this->handleFailure($notification, $result, $retryStrategy);
             }
         } catch (\Throwable $e) {
+            $this->recordMetrics($notification, false, $start);
             $circuitBreaker->recordFailure($notification->channel);
             $result = DeliveryResult::failure($e->getMessage(), true);
             $this->handleFailure($notification, $result, $retryStrategy);
@@ -86,6 +92,18 @@ class SendNotificationJob implements ShouldQueue
                 'error_message' => $result->errorMessage,
             ]);
         }
+    }
+
+    private function recordMetrics(Notification $notification, bool $success, float $start): void
+    {
+        $channel = $notification->channel->value;
+        $key = $success ? "metrics:deliveries:success:{$channel}" : "metrics:deliveries:failure:{$channel}";
+        $latency = round((microtime(true) - $start) * 1000, 2);
+
+        Redis::incr($key);
+        Redis::expire($key, 3600);
+        Redis::lpush("metrics:latency:{$channel}", $latency);
+        Redis::ltrim("metrics:latency:{$channel}", 0, 99);
     }
 
     private function claimNotification(Notification $notification): bool

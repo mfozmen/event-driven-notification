@@ -11,10 +11,13 @@ use App\Services\ChannelRateLimiter;
 use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Redis;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    Redis::spy();
+
     $this->rateLimiter = Mockery::mock(ChannelRateLimiter::class);
     $this->rateLimiter->shouldReceive('attempt')->andReturn(true);
 

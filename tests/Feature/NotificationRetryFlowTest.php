@@ -10,8 +10,13 @@ use App\Services\ChannelRateLimiter;
 use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Redis;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    Redis::spy();
+});
 
 test('retryable failure sets status to retrying and re-queues', function () {
     $provider = Mockery::mock(NotificationChannelInterface::class);
