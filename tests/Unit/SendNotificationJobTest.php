@@ -9,6 +9,7 @@ use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
 use App\Services\CircuitBreaker;
+use App\Services\NotificationLogger;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Redis;
@@ -222,4 +223,44 @@ test('handle calls recordFailure on circuit breaker after failed delivery', func
     $notification->refresh();
 
     expect($notification->status)->toBe(Status::RETRYING);
+});
+
+test('handle delivers successfully even when notification logger throws exception', function () {
+    $logger = Mockery::mock(NotificationLogger::class);
+    $logger->shouldReceive('log')->andThrow(new \RuntimeException('Logger database down'));
+
+    app()->instance(NotificationLogger::class, $logger);
+
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'channel' => Channel::SMS,
+    ]);
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $this->circuitBreaker);
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::DELIVERED);
+    expect($notification->delivered_at)->not->toBeNull();
+});
+
+test('handle delivers successfully even when metrics recording fails', function () {
+    Redis::shouldReceive('incr')->andThrow(new \RuntimeException('Redis connection refused'));
+    Redis::shouldReceive('expire')->andThrow(new \RuntimeException('Redis connection refused'));
+    Redis::shouldReceive('lpush')->andThrow(new \RuntimeException('Redis connection refused'));
+    Redis::shouldReceive('ltrim')->andThrow(new \RuntimeException('Redis connection refused'));
+
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'channel' => Channel::SMS,
+    ]);
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $this->circuitBreaker);
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::DELIVERED);
+    expect($notification->delivered_at)->not->toBeNull();
 });
