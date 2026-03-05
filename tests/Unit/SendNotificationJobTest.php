@@ -3,10 +3,12 @@
 use App\Channels\ChannelProviderFactory;
 use App\Contracts\NotificationChannelInterface;
 use App\DTOs\DeliveryResult;
+use App\Enums\Channel;
 use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -165,4 +167,51 @@ test('handle increments attempts and sets last_attempted_at on processing', func
 
     expect($notification->attempts)->toBe(1);
     expect($notification->last_attempted_at)->not->toBeNull();
+});
+
+test('handle calls recordSuccess on circuit breaker after successful delivery', function () {
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'channel' => Channel::SMS,
+    ]);
+
+    $circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $circuitBreaker->shouldReceive('isAvailable')->with(Channel::SMS)->andReturn(true);
+    $circuitBreaker->shouldReceive('recordSuccess')->with(Channel::SMS)->once();
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $circuitBreaker);
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::DELIVERED);
+});
+
+test('handle calls recordFailure on circuit breaker after failed delivery', function () {
+    $provider = Mockery::mock(NotificationChannelInterface::class);
+    $provider->shouldReceive('send')->andReturn(DeliveryResult::failure('Server error', true));
+
+    $factory = Mockery::mock(ChannelProviderFactory::class);
+    $factory->shouldReceive('resolve')->andReturn($provider);
+
+    $retryStrategy = Mockery::mock(RetryStrategy::class);
+    $retryStrategy->shouldReceive('shouldRetry')->andReturn(true);
+    $retryStrategy->shouldReceive('calculateDelay')->andReturn(30);
+
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'channel' => Channel::SMS,
+        'max_attempts' => 3,
+    ]);
+
+    $circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $circuitBreaker->shouldReceive('isAvailable')->with(Channel::SMS)->andReturn(true);
+    $circuitBreaker->shouldReceive('recordFailure')->with(Channel::SMS)->once();
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $factory, $retryStrategy, $circuitBreaker);
+
+    $notification->refresh();
+
+    expect($notification->status)->toBe(Status::RETRYING);
 });
