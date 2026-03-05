@@ -9,10 +9,12 @@ use App\Enums\Priority;
 use App\Enums\Status;
 use App\Events\NotificationCreated;
 use App\Models\Notification;
+use App\Models\NotificationTemplate;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class NotificationService
 {
@@ -58,15 +60,33 @@ class NotificationService
             return new CreateNotificationResult($existing, existed: true);
         }
 
+        $content = $data['content'] ?? null;
+        $templateId = $data['template_id'] ?? null;
+        $templateVariables = $data['template_variables'] ?? [];
+
+        if ($templateId) {
+            $template = NotificationTemplate::findOrFail($templateId);
+
+            try {
+                $content = $template->render($templateVariables);
+            } catch (\InvalidArgumentException $e) {
+                throw ValidationException::withMessages([
+                    'template_variables' => [$e->getMessage()],
+                ]);
+            }
+        }
+
         $notification = Notification::create([
             'recipient' => $data['recipient'],
             'channel' => $data['channel'],
-            'content' => $data['content'],
+            'content' => $content,
             'priority' => $data['priority'] ?? Priority::NORMAL->value,
             'status' => Status::PENDING,
             'correlation_id' => $data['correlation_id'],
             'idempotency_key' => $data['idempotency_key'] ?? null,
             'scheduled_at' => $data['scheduled_at'] ?? null,
+            'template_id' => $templateId,
+            'template_variables' => $templateId ? $templateVariables : null,
         ]);
 
         $this->logger->log($notification, 'created');

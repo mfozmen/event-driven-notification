@@ -1,6 +1,5 @@
 <?php
 
-use App\Jobs\SendNotificationJob;
 use App\Models\NotificationTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
