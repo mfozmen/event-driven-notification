@@ -197,7 +197,7 @@ return [
     */
 
     'defaults' => [
-        'supervisor-1' => [
+        'notification-worker' => [
             'connection' => 'redis',
             'queue' => ['high', 'normal', 'low'],
             'balance' => 'auto',
@@ -214,7 +214,7 @@ return [
 
     'environments' => [
         'production' => [
-            'supervisor-1' => [
+            'notification-worker' => [
                 'maxProcesses' => 10,
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
@@ -222,7 +222,7 @@ return [
         ],
 
         'local' => [
-            'supervisor-1' => [
+            'notification-worker' => [
                 'maxProcesses' => 3,
             ],
         ],
