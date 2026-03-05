@@ -25,6 +25,7 @@ No `.env` file needed — all configuration lives in `docker-compose.yml`.
 | **Adminer** (MySQL GUI) | http://localhost:8081 | Server: `mysql`, User: `laravel`, Pass: `secret`, DB: `notification_db` |
 | **Redis Commander** | http://localhost:8082 | Inspect Redis keys, queue data, rate limiter counters |
 | **Swagger API Docs** | http://localhost:8080/api/documentation | Interactive API docs (run `php artisan l5-swagger:generate` first) |
+| **Scheduler** | — | Runs `notifications:process-stuck` every minute to catch stuck retrying notifications |
 
 ---
 
@@ -70,6 +71,8 @@ Client → REST API → NotificationCreated Event → QueueNotificationListener
 7. **Atomic claim** — `UPDATE ... WHERE status IN ('queued', 'retrying')` prevents duplicate processing by competing workers
 8. **Provider delivers** — `ChannelProviderFactory` resolves the correct provider (SMS/Email/Push), POSTs to webhook.site
 9. **Status updated** — `delivered` on success, `retrying` with exponential backoff on retryable failure, `permanently_failed` on non-retryable or max attempts exhausted
+10. **Retry flow** — Provider fails → `RetryStrategy` checks if retryable → if yes and attempts remaining: status → `retrying`, `release($delay)` with exponential backoff + jitter → worker picks up again after delay. If `release($delay)` fails silently or worker crashes mid-retry, the safety net command re-queues stuck notifications.
+11. **Safety net** — `notifications:process-stuck` runs every minute via Laravel scheduler. Finds notifications stuck in `retrying` with a past `next_retry_at`, sets status to `queued`, and re-dispatches to the correct priority queue.
 
 ---
 
@@ -198,6 +201,15 @@ Inside Docker prefix with `docker-compose exec app`.
 
 ---
 
+## Artisan Commands
+
+```bash
+# Re-queue stuck retrying notifications (runs automatically every minute via scheduler service)
+php artisan notifications:process-stuck
+```
+
+---
+
 ## Design Decisions
 
 **Cancellation scope** — Extended beyond just `pending` to include `queued` and `retrying` statuses. Notifications that haven't been delivered yet should be cancellable. `processing`, `delivered`, `failed`, and `permanently_failed` cannot be cancelled.
@@ -235,5 +247,7 @@ Inside Docker prefix with `docker-compose exec app`.
 **Retry with exponential backoff and jitter** — Failed deliveries retry up to `max_attempts` (default 3) with exponential backoff: `base_delay * 2^(attempt-1) + random(0, base_delay)`. With the default 30s base delay: attempt 1 waits 30-60s, attempt 2 waits 60-90s, attempt 3 waits 120-150s. Jitter is proportional to the base delay to spread retries and prevent thundering herd. Non-retryable errors (4xx) skip retries entirely and go straight to `permanently_failed`. Uses Laravel's `$job->release($delay)` to re-queue with the calculated delay.
 
 **Circuit breaker** — Per-channel circuit breaker using Redis prevents overwhelming a failing provider. Uses a count-based approach (not percentage-based) for simplicity — tracks raw failure counts in a sliding time window. Three states: **closed** (normal, all requests pass), **open** (too many failures, requests rejected immediately), **half-open** (after cooldown, one probe request allowed). Config: 5 failures within 60s trips open, 30s cooldown before half-open. When circuit is open, jobs are released back to the queue with a 30s delay. On successful delivery the circuit resets to closed; on failure during half-open the circuit reopens with a fresh cooldown.
+
+**Safety net command** — `notifications:process-stuck` runs every minute via Laravel scheduler. Catches notifications stuck in `retrying` status where `next_retry_at` has passed — sets status back to `queued` and re-dispatches `SendNotificationJob` to the correct priority queue. This handles edge cases where `$job->release($delay)` fails silently or a worker crashes mid-retry. Processes in chunks of 100 to handle large backlogs without memory issues.
 
 **Horizontal scaling** — The Horizon service can be scaled independently with `docker compose up --scale horizon=N`. Each instance manages its own worker pool. The API and queue processing are already separate containers sharing the same codebase but with different entry points (`php-fpm` vs `php artisan horizon`), making horizontal scaling straightforward without code changes.
