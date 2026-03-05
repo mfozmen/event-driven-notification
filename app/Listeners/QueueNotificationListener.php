@@ -18,6 +18,10 @@ class QueueNotificationListener
         try {
             $notification = $event->notification;
 
+            if ($notification->scheduled_at && $notification->scheduled_at->isFuture()) {
+                return;
+            }
+
             $notification->update(['status' => 'queued']);
 
             $this->logger->log($notification, 'queued');

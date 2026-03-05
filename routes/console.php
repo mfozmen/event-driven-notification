@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('notifications:process-stuck')->everyMinute();
+Schedule::command('notifications:process-scheduled')->everyMinute();

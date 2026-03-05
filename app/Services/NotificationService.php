@@ -66,6 +66,7 @@ class NotificationService
             'status' => Status::PENDING,
             'correlation_id' => $data['correlation_id'],
             'idempotency_key' => $data['idempotency_key'] ?? null,
+            'scheduled_at' => $data['scheduled_at'] ?? null,
         ]);
 
         $this->logger->log($notification, 'created');
