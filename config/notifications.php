@@ -15,6 +15,12 @@ return [
         'base_delay_seconds' => (int) env('NOTIFICATION_RETRY_BASE_DELAY', 30),
     ],
 
+    'circuit_breaker' => [
+        'failure_threshold' => (int) env('CIRCUIT_BREAKER_FAILURE_THRESHOLD', 5),
+        'window_seconds' => (int) env('CIRCUIT_BREAKER_WINDOW_SECONDS', 60),
+        'cooldown_seconds' => (int) env('CIRCUIT_BREAKER_COOLDOWN_SECONDS', 30),
+    ],
+
     'channels' => [
         'sms' => [
             'max_content_length' => 160,

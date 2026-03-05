@@ -7,6 +7,7 @@ use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -17,6 +18,11 @@ beforeEach(function () {
     $this->rateLimiter->shouldReceive('attempt')->andReturn(true);
 
     $this->retryStrategy = Mockery::mock(RetryStrategy::class);
+
+    $this->circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $this->circuitBreaker->shouldReceive('isAvailable')->andReturn(true);
+    $this->circuitBreaker->shouldReceive('recordSuccess')->andReturnNull();
+    $this->circuitBreaker->shouldReceive('recordFailure')->andReturnNull();
 });
 
 test('handle retries retryable failure when attempts remaining', function () {
@@ -39,7 +45,7 @@ test('handle retries retryable failure when attempts remaining', function () {
         ->makePartial();
     $job->shouldReceive('release')->with(30)->once();
 
-    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -64,7 +70,7 @@ test('handle sets permanently_failed when max attempts reached', function () {
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -89,7 +95,7 @@ test('handle sets permanently_failed for non-retryable failure', function () {
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -114,7 +120,7 @@ test('handle processes notification in retrying status', function () {
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -139,7 +145,7 @@ test('handle permanently fails on first attempt when max_attempts is 1', functio
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 

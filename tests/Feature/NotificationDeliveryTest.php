@@ -6,6 +6,7 @@ use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -17,6 +18,11 @@ beforeEach(function () {
     $this->rateLimiter->shouldReceive('attempt')->andReturn(true);
 
     $this->retryStrategy = new RetryStrategy;
+
+    $this->circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $this->circuitBreaker->shouldReceive('isAvailable')->andReturn(true);
+    $this->circuitBreaker->shouldReceive('recordSuccess')->andReturnNull();
+    $this->circuitBreaker->shouldReceive('recordFailure')->andReturnNull();
 });
 
 test('job delivers notification successfully via channel provider', function () {
@@ -36,7 +42,7 @@ test('job delivers notification successfully via channel provider', function () 
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class), $this->retryStrategy);
+    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class), $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -60,7 +66,7 @@ test('job sets status to retrying when provider returns 500', function () {
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class), $this->retryStrategy);
+    $job->handle($this->rateLimiter, app(ChannelProviderFactory::class), $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
