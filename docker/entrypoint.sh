@@ -10,7 +10,6 @@ if [ ! -d /var/www/vendor ]; then
     composer dump-autoload --optimize
 fi
 
-php artisan key:generate --no-interaction --force 2>/dev/null || true
 php artisan migrate --force --no-interaction 2>/dev/null || true
 
 chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
