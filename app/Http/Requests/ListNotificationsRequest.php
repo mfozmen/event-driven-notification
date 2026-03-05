@@ -20,7 +20,7 @@ class ListNotificationsRequest extends FormRequest
             'date_from' => ['sometimes', 'date'],
             'date_to' => ['sometimes', 'date'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
-            'cursor' => ['sometimes', 'string'],
+            'cursor' => ['sometimes', 'nullable', 'string'],
         ];
     }
 }
