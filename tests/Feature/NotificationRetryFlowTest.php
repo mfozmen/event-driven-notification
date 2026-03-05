@@ -7,6 +7,7 @@ use App\Enums\Status;
 use App\Jobs\SendNotificationJob;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -24,6 +25,10 @@ test('retryable failure sets status to retrying and re-queues', function () {
 
     $retryStrategy = new RetryStrategy;
 
+    $circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $circuitBreaker->shouldReceive('isAvailable')->andReturn(true);
+    $circuitBreaker->shouldReceive('recordFailure')->andReturnNull();
+
     $notification = Notification::factory()->create([
         'status' => Status::QUEUED,
         'attempts' => 0,
@@ -31,7 +36,7 @@ test('retryable failure sets status to retrying and re-queues', function () {
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($rateLimiter, $factory, $retryStrategy);
+    $job->handle($rateLimiter, $factory, $retryStrategy, $circuitBreaker);
 
     $notification->refresh();
 
@@ -53,6 +58,10 @@ test('non-retryable failure sets permanently_failed immediately', function () {
 
     $retryStrategy = new RetryStrategy;
 
+    $circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $circuitBreaker->shouldReceive('isAvailable')->andReturn(true);
+    $circuitBreaker->shouldReceive('recordFailure')->andReturnNull();
+
     $notification = Notification::factory()->create([
         'status' => Status::QUEUED,
         'attempts' => 0,
@@ -60,7 +69,7 @@ test('non-retryable failure sets permanently_failed immediately', function () {
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($rateLimiter, $factory, $retryStrategy);
+    $job->handle($rateLimiter, $factory, $retryStrategy, $circuitBreaker);
 
     $notification->refresh();
 
@@ -81,6 +90,10 @@ test('notification retries up to max_attempts then permanently fails', function 
 
     $retryStrategy = new RetryStrategy;
 
+    $circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $circuitBreaker->shouldReceive('isAvailable')->andReturn(true);
+    $circuitBreaker->shouldReceive('recordFailure')->andReturnNull();
+
     $notification = Notification::factory()->create([
         'status' => Status::QUEUED,
         'attempts' => 0,
@@ -89,7 +102,7 @@ test('notification retries up to max_attempts then permanently fails', function 
 
     // Attempt 1: should retry
     $job1 = new SendNotificationJob($notification->id);
-    $job1->handle($rateLimiter, $factory, $retryStrategy);
+    $job1->handle($rateLimiter, $factory, $retryStrategy, $circuitBreaker);
     $notification->refresh();
     expect($notification->status)->toBe(Status::RETRYING);
     expect($notification->attempts)->toBe(1);
@@ -97,14 +110,14 @@ test('notification retries up to max_attempts then permanently fails', function 
     // Simulate re-queue: status stays retrying, job picks it up again
     // Attempt 2: should retry
     $job2 = new SendNotificationJob($notification->id);
-    $job2->handle($rateLimiter, $factory, $retryStrategy);
+    $job2->handle($rateLimiter, $factory, $retryStrategy, $circuitBreaker);
     $notification->refresh();
     expect($notification->status)->toBe(Status::RETRYING);
     expect($notification->attempts)->toBe(2);
 
     // Attempt 3: max reached, should permanently fail
     $job3 = new SendNotificationJob($notification->id);
-    $job3->handle($rateLimiter, $factory, $retryStrategy);
+    $job3->handle($rateLimiter, $factory, $retryStrategy, $circuitBreaker);
     $notification->refresh();
     expect($notification->status)->toBe(Status::PERMANENTLY_FAILED);
     expect($notification->attempts)->toBe(3);

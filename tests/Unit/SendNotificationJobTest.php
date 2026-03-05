@@ -25,13 +25,18 @@ beforeEach(function () {
     $this->factory->shouldReceive('resolve')->andReturn($provider);
 
     $this->retryStrategy = Mockery::mock(RetryStrategy::class);
+
+    $this->circuitBreaker = Mockery::mock(CircuitBreaker::class);
+    $this->circuitBreaker->shouldReceive('isAvailable')->andReturn(true);
+    $this->circuitBreaker->shouldReceive('recordSuccess')->andReturnNull();
+    $this->circuitBreaker->shouldReceive('recordFailure')->andReturnNull();
 });
 
 test('handle performs atomic status transition from queued to delivered', function () {
     $notification = Notification::factory()->create(['status' => Status::QUEUED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -42,7 +47,7 @@ test('handle skips notification that is not in queued status', function () {
     $notification = Notification::factory()->create(['status' => Status::PROCESSING]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -53,7 +58,7 @@ test('handle skips notification that is already delivered', function () {
     $notification = Notification::factory()->create(['status' => Status::DELIVERED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -64,7 +69,7 @@ test('handle skips notification that was cancelled', function () {
     $notification = Notification::factory()->create(['status' => Status::CANCELLED]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -76,7 +81,7 @@ test('handle gracefully handles non-existent notification', function () {
     $factory->shouldNotReceive('resolve');
 
     $job = new SendNotificationJob('non-existent-id');
-    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
 });
 
 test('handle does not call provider when another worker already claimed the notification', function () {
@@ -93,7 +98,7 @@ test('handle does not call provider when another worker already claimed the noti
     Notification::where('id', $notification->id)->update(['status' => Status::PROCESSING]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -117,7 +122,7 @@ test('handle sets status to retrying when provider returns retryable failure', f
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory, $retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -144,7 +149,7 @@ test('handle sets status to retrying when provider throws unexpected exception',
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $factory, $retryStrategy);
+    $job->handle($this->rateLimiter, $factory, $retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 
@@ -161,7 +166,7 @@ test('handle increments attempts and sets last_attempted_at on processing', func
     ]);
 
     $job = new SendNotificationJob($notification->id);
-    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy);
+    $job->handle($this->rateLimiter, $this->factory, $this->retryStrategy, $this->circuitBreaker);
 
     $notification->refresh();
 

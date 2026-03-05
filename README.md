@@ -56,8 +56,9 @@ The system uses [webhook.site](https://webhook.site) to simulate external SMS/Em
 ```
 Client → REST API → NotificationCreated Event → QueueNotificationListener
   → Priority Queue (high/normal/low) → Horizon Worker → SendNotificationJob
-  → Rate Limiter Check → Atomic Status Claim → Channel Provider (SMS/Email/Push)
-  → POST to webhook.site → Status Update (delivered/failed)
+  → Rate Limiter Check → Circuit Breaker Check → Atomic Status Claim
+  → Channel Provider (SMS/Email/Push) → POST to webhook.site
+  → Status Update (delivered/retrying/permanently_failed)
 ```
 
 1. **API receives request** — validates, creates notification with `pending` status
@@ -65,9 +66,10 @@ Client → REST API → NotificationCreated Event → QueueNotificationListener
 3. **Listener dispatches job** — sets status to `queued`, dispatches `SendNotificationJob` to the appropriate priority queue
 4. **Worker picks up job** — Horizon manages workers across `high`, `normal`, `low` queues
 5. **Rate limiter checks** — 100 messages/second/channel via Redis sliding window; if exceeded, job is released back with 1s delay
-6. **Atomic claim** — `UPDATE ... WHERE status = 'queued'` prevents duplicate processing by competing workers
-7. **Provider delivers** — `ChannelProviderFactory` resolves the correct provider (SMS/Email/Push), POSTs to webhook.site
-8. **Status updated** — `delivered` on success, `failed` on error (with retry logic in Phase 6)
+6. **Circuit breaker checks** — if channel has too many recent failures, job is released back with 30s delay
+7. **Atomic claim** — `UPDATE ... WHERE status IN ('queued', 'retrying')` prevents duplicate processing by competing workers
+8. **Provider delivers** — `ChannelProviderFactory` resolves the correct provider (SMS/Email/Push), POSTs to webhook.site
+9. **Status updated** — `delivered` on success, `retrying` with exponential backoff on retryable failure, `permanently_failed` on non-retryable or max attempts exhausted
 
 ---
 
@@ -231,5 +233,7 @@ Inside Docker prefix with `docker-compose exec app`.
 **Isolated worker pools per priority** — Instead of a single worker group processing all queues in order, each priority level has its own dedicated worker pool (high: 3 processes, normal: 2, low: 1). This prevents low-priority bulk notifications from blocking high-priority messages. In a single-pool setup, a worker processing a low-priority job can't pick up a new high-priority job until it finishes.
 
 **Retry with exponential backoff and jitter** — Failed deliveries retry up to `max_attempts` (default 3) with exponential backoff: `base_delay * 2^(attempt-1) + random(0, base_delay)`. With the default 30s base delay: attempt 1 waits 30-60s, attempt 2 waits 60-90s, attempt 3 waits 120-150s. Jitter is proportional to the base delay to spread retries and prevent thundering herd. Non-retryable errors (4xx) skip retries entirely and go straight to `permanently_failed`. Uses Laravel's `$job->release($delay)` to re-queue with the calculated delay.
+
+**Circuit breaker** — Per-channel circuit breaker using Redis prevents overwhelming a failing provider. Uses a count-based approach (not percentage-based) for simplicity — tracks raw failure counts in a sliding time window. Three states: **closed** (normal, all requests pass), **open** (too many failures, requests rejected immediately), **half-open** (after cooldown, one probe request allowed). Config: 5 failures within 60s trips open, 30s cooldown before half-open. When circuit is open, jobs are released back to the queue with a 30s delay. On successful delivery the circuit resets to closed; on failure during half-open the circuit reopens with a fresh cooldown.
 
 **Horizontal scaling** — The Horizon service can be scaled independently with `docker compose up --scale horizon=N`. Each instance manages its own worker pool. The API and queue processing are already separate containers sharing the same codebase but with different entry points (`php-fpm` vs `php artisan horizon`), making horizontal scaling straightforward without code changes.

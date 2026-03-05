@@ -7,6 +7,7 @@ use App\DTOs\DeliveryResult;
 use App\Enums\Status;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
+use App\Services\CircuitBreaker;
 use App\Services\RetryStrategy;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -19,7 +20,7 @@ class SendNotificationJob implements ShouldQueue
         public string $notificationId,
     ) {}
 
-    public function handle(ChannelRateLimiter $rateLimiter, ChannelProviderFactory $factory, RetryStrategy $retryStrategy): void
+    public function handle(ChannelRateLimiter $rateLimiter, ChannelProviderFactory $factory, RetryStrategy $retryStrategy, CircuitBreaker $circuitBreaker): void
     {
         $notification = Notification::find($this->notificationId);
 
@@ -37,6 +38,12 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
+        if (! $circuitBreaker->isAvailable($notification->channel)) {
+            $this->release(30);
+
+            return;
+        }
+
         if (! $this->claimNotification($notification)) {
             return;
         }
@@ -50,10 +57,13 @@ class SendNotificationJob implements ShouldQueue
                     'status' => Status::DELIVERED,
                     'delivered_at' => now(),
                 ]);
+                $circuitBreaker->recordSuccess($notification->channel);
             } else {
+                $circuitBreaker->recordFailure($notification->channel);
                 $this->handleFailure($notification, $result, $retryStrategy);
             }
         } catch (\Throwable $e) {
+            $circuitBreaker->recordFailure($notification->channel);
             $result = DeliveryResult::failure($e->getMessage(), true);
             $this->handleFailure($notification, $result, $retryStrategy);
         }
