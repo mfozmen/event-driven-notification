@@ -128,6 +128,25 @@ services:
     networks:
       - notification_network
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification_scheduler
+    restart: unless-stopped
+    working_dir: /var/www
+    command: php artisan schedule:work
+    volumes: *app-volumes
+    environment:
+      <<: *app-environment
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notification_network
+
   adminer:
     image: adminer:latest
     container_name: notification_adminer
