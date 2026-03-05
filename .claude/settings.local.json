@@ -31,7 +31,8 @@
       "Bash(composer require:*)",
       "Bash(docker compose:*)",
       "Bash(curl:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(docker exec:*)"
     ]
   }
 }
