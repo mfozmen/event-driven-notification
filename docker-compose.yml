@@ -20,7 +20,7 @@ x-app-environment: &app-environment
   QUEUE_CONNECTION: redis
   SESSION_DRIVER: redis
 
-  LOG_CHANNEL: stack
+  LOG_CHANNEL: json
   LOG_LEVEL: debug
 
   WEBHOOK_SITE_UUID: "cc03cf16-de43-4cd0-9696-da49e73a35f6"
