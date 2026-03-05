@@ -25,6 +25,19 @@ Event-Driven Notification System for Insider One — a scalable REST API that pr
 
 Every phase must include BOTH unit tests and feature tests. Unit tests cover isolated logic (services, DTOs, enums, strategies, value objects). Feature tests cover HTTP endpoints and full request lifecycle. Never skip unit tests — if a service method has logic, it needs a unit test.
 
+### Edge Case Testing
+
+When writing tests for any new feature, always include edge case tests alongside happy path tests. Consider at minimum:
+
+- Empty strings and null values for optional fields
+- Boundary values (exact limits, one over, one under)
+- Invalid enum values
+- Invalid formats (non-UUID where UUID expected, non-date where date expected)
+- Empty arrays and single-item arrays for collection endpoints
+- Concurrent/race condition scenarios where applicable
+
+Don't wait for a separate edge case review — include them in the initial test suite for each phase.
+
 ### Testing Conventions
 
 - Never use global `const` in test files. Use `beforeEach` to set up shared data (`$this->service`, `$this->recipient`, etc.)
