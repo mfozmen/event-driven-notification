@@ -260,7 +260,130 @@ Open http://localhost:8082 and inspect:
 - **Queue keys:** Look for `queues:high`, `queues:normal`, `queues:low` — these hold pending jobs.
 - **Horizon keys:** Keys prefixed with `horizon:` contain supervisor state, job metrics, and worker data.
 
-### 15. Verify in Adminer
+---
+
+## Safety Net Command Tests
+
+### 15. Manual Command Run (No Stuck Notifications)
+
+```bash
+docker compose exec app php artisan notifications:process-stuck
+```
+
+**Expected:** `Processed 0 stuck notifications.`
+
+### 16. Scheduler Is Running
+
+```bash
+docker compose logs scheduler --tail=10
+```
+
+**Expected:** The scheduler service is running and executing the command every minute. You should see periodic output from `schedule:work`.
+
+### 17. Stuck Notification Recovery
+
+1. Create a notification stuck in `retrying` with a past `next_retry_at`:
+   ```bash
+   docker compose exec app php artisan tinker --execute="
+     \App\Models\Notification::factory()->create([
+       'status' => 'retrying',
+       'next_retry_at' => now()->subMinutes(5),
+       'attempts' => 1,
+       'max_attempts' => 3,
+       'recipient' => '+905551234567',
+       'channel' => 'sms',
+       'content' => 'Stuck test',
+     ]);
+   "
+   ```
+2. Run the safety net command:
+   ```bash
+   docker compose exec app php artisan notifications:process-stuck
+   ```
+   **Expected:** `Processed 1 stuck notifications.`
+3. Check the notification status (use the ID from tinker output):
+   ```bash
+   curl -s http://localhost:8080/api/notifications/{id}
+   ```
+   **Expected:** `status` is `queued`, then eventually `delivered` after Horizon processes it (if webhook.site returns 202).
+
+---
+
+## Infinite Loop Prevention Tests (CRITICAL)
+
+These tests verify that notifications cannot get stuck in an infinite retry loop.
+
+### 18. Max Attempts Prevents Infinite Retry
+
+1. On webhook.site, click **Edit** and set **Status Code** to `500`. Click **Save**.
+2. Create a notification (default `max_attempts` is 3):
+   ```bash
+   curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "Infinite loop test"}'
+   ```
+3. Wait for all retry cycles to complete (~3-4 minutes with exponential backoff).
+4. Verify via tinker:
+   ```bash
+   docker compose exec app php artisan tinker --execute="
+     \App\Models\Notification::where('status', 'permanently_failed')->get(['id', 'attempts', 'max_attempts', 'status', 'error_message'])->toArray();
+   "
+   ```
+   **Expected:** `status` is `permanently_failed`, `attempts` equals `max_attempts` (3). The notification must NOT be re-queued again after reaching `permanently_failed`.
+
+### 19. Safety Net Respects permanently_failed
+
+After test 18, run the safety net command:
+
+```bash
+docker compose exec app php artisan notifications:process-stuck
+```
+
+**Expected:** `Processed 0 stuck notifications.` — `permanently_failed` notifications are never re-queued.
+
+### 20. Safety Net Respects Future next_retry_at
+
+1. Create a notification with `retrying` status and a future `next_retry_at`:
+   ```bash
+   docker compose exec app php artisan tinker --execute="
+     \App\Models\Notification::factory()->create([
+       'status' => 'retrying',
+       'next_retry_at' => now()->addMinutes(5),
+       'attempts' => 1,
+       'max_attempts' => 3,
+       'recipient' => '+905551234567',
+       'channel' => 'sms',
+       'content' => 'Future retry test',
+     ]);
+   "
+   ```
+2. Run the command:
+   ```bash
+   docker compose exec app php artisan notifications:process-stuck
+   ```
+   **Expected:** `Processed 0 stuck notifications.` — the notification stays in `retrying` until its retry time arrives.
+
+### 21. Circuit Breaker Prevents Hammering
+
+1. On webhook.site, set **Status Code** to `500`.
+2. Send several notifications rapidly:
+   ```bash
+   for i in $(seq 1 10); do
+     curl -s -X POST http://localhost:8080/api/notifications \
+       -H "Content-Type: application/json" \
+       -d "{\"recipient\": \"+90555123456$i\", \"channel\": \"sms\", \"content\": \"Circuit breaker test $i\"}" &
+   done
+   wait
+   ```
+3. After 5+ failures, check Redis Commander at http://localhost:8082 for circuit breaker keys matching `circuit_breaker:sms:*`.
+4. **Expected:** The circuit opens after 5 failures within 60 seconds. New jobs for the `sms` channel are released back to the queue with a 30s delay instead of hitting the provider. After the 30s cooldown, the circuit enters half-open and allows one probe request through.
+5. Remember to set webhook.site back to `202` after testing.
+
+---
+
+## Database Verification
+
+### 22. Verify in Adminer
 
 Open http://localhost:8081, connect with Server `mysql`, User `laravel`, Password `secret`, Database `notification_db`:
 
