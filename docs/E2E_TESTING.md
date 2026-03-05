@@ -381,9 +381,54 @@ docker compose exec app php artisan notifications:process-stuck
 
 ---
 
+## Observability Tests (Phase 7)
+
+### 22. Health Check Endpoint
+
+```bash
+curl -s http://localhost:8080/api/health
+```
+
+**Expected:** HTTP 200, `status` is `healthy`, `services` contains `database`, `redis`, `horizon` each with `status: "up"` and `latency_ms`. No `X-Correlation-ID` header in the response (middleware excluded).
+
+### 23. Metrics Endpoint
+
+```bash
+curl -s http://localhost:8080/api/metrics
+```
+
+**Expected:** HTTP 200, response contains `queue_depths` (with `high`, `normal`, `low`), `deliveries` (with per-channel `success`/`failure` counts), `latency` (with per-channel `avg_ms` and `sample_count`), `totals` (with counts by status), and `timestamp`.
+
+### 24. Notification Trace (Full Lifecycle)
+
+1. Create a notification and wait for delivery:
+   ```bash
+   RESPONSE=$(curl -s -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "Trace E2E test"}')
+   ID=$(echo $RESPONSE | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+   echo "Notification ID: $ID"
+   sleep 5
+   ```
+2. Fetch the trace:
+   ```bash
+   curl -s http://localhost:8080/api/notifications/$ID/trace
+   ```
+   **Expected:** HTTP 200, `data` array with entries in order: `created`, `queued`, `processing`, `delivered`. Each entry has `event`, `correlation_id`, `details`, and `created_at`.
+
+### 25. Structured JSON Logs
+
+```bash
+docker compose logs app --tail=20
+```
+
+**Expected:** Log lines are JSON objects with `timestamp`, `level`, `message` fields. Entries related to notification processing should include `correlation_id` in context.
+
+---
+
 ## Database Verification
 
-### 22. Verify in Adminer
+### 26. Verify in Adminer
 
 Open http://localhost:8081, connect with Server `mysql`, User `laravel`, Password `secret`, Database `notification_db`:
 
