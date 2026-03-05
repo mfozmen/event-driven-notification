@@ -40,7 +40,13 @@ If Redis crashes, a recovery command re-queues notifications stuck in `queued` s
 - ✅ Phase 3b — List notifications with filtering and cursor pagination
 - ✅ Phase 3c — Cancel notification
 - ✅ Phase 3d — Batch create & batch status
-- 🔲 Phase 4a — Starting now
+- ✅ Phase 4a — Horizon setup & event/listener/job chain
+- ✅ Phase 4b — Rate limiter
+- ✅ Phase 5 — Channel providers & delivery
+- ✅ Phase 6a — Retry strategy with exponential backoff and jitter
+- ✅ Phase 6b — Circuit breaker
+- ✅ Phase 6c — Safety net command
+- 🔲 Phase 7a — Health check
 
 ---
 
@@ -303,30 +309,96 @@ Phase 4 was too large — Horizon setup, event/listener/job chain, and rate limi
 
 ---
 
-## Phase 7 — Observability (TDD)
+## Phase 7a — Health Check (TDD)
 
-**Goal**: Metrics, structured logging, health checks, distributed tracing.
+**Goal**: `GET /api/health` endpoint that checks all critical services.
 
 ### Tests first:
-- Feature: `GET /api/health` — returns status of app, db, redis, queue
-- Feature: `GET /api/metrics` — returns queue depths, success/failure rates, latency
-- Unit: Structured log format includes correlation_id, channel, notification_id
-- Feature: `GET /api/notifications/{id}/trace` — returns status transition log
+- Feature: Returns 200 with all services up
+- Feature: Returns 503 when database is down (mock DB connection to throw)
+- Feature: Returns 503 when Redis is down (mock Redis to throw)
+- Feature: Response includes `latency_ms` for each service
+- Feature: Response includes correct timestamp
 
 ### Implementation:
 
-1. **Health check**: `HealthController` — pings DB, Redis, checks Horizon status
-2. **Metrics**: `MetricsController`
-   - Queue depths per priority (from Horizon API or Redis `LLEN`)
-   - Success/failure counts (last 1m, 5m, 1h) — Redis counters incremented on delivery result
-   - Average delivery latency per channel
-3. **Structured logging**: Custom JSON log formatter, correlation_id propagated from middleware through jobs
-4. **Distributed tracing**: `notification_logs` table
-   - `id`, `notification_id`, `correlation_id`, `event` (e.g., created, queued, processing, delivered, failed), `details` (JSON), `created_at`
-   - `NotificationLogger` service — logs every status transition
-   - `GET /api/notifications/{id}/trace` endpoint — returns ordered log entries
+1. **`HealthController`** — single `__invoke` method
+   - Database: `DB::connection()->getPdo()` wrapped in try/catch
+   - Redis: `Redis::ping()` wrapped in try/catch
+   - Horizon: Check via `\Laravel\Horizon\Contracts\MasterSupervisorRepository`
+2. **Response format**: `{ status: "healthy"|"degraded", services: { database, redis, horizon }, timestamp }`
+3. **Route**: `GET /api/health` — no auth, no middleware (monitoring tools need access)
+4. Return 200 when all healthy, 503 when any service is down
 
-**Commit**: "feat: health check, metrics, structured logging, and distributed tracing"
+**Commit**: "feat: health check endpoint"
+
+---
+
+## Phase 7b — Metrics Endpoint (TDD)
+
+**Goal**: `GET /api/metrics` with real-time queue and delivery stats.
+
+### Tests first:
+- Feature: Returns queue depths
+- Feature: Returns success/failure counts
+- Feature: Returns delivery latency
+- Unit: Counter is incremented on successful delivery
+- Unit: Counter is incremented on failed delivery
+
+### Implementation:
+
+1. **Increment Redis counters in `SendNotificationJob`** on delivery result:
+   - `metrics:deliveries:success:{channel}` (INCR + EXPIRE 3600)
+   - `metrics:deliveries:failure:{channel}` (INCR + EXPIRE 3600)
+   - `metrics:latency:{channel}` (store delivery duration, keep last 100 values via LPUSH + LTRIM)
+2. **`MetricsController`**:
+   - Queue depths per priority from Redis LLEN on Horizon queue keys
+   - Success/failure counts per channel from Redis counters
+   - Average delivery latency per channel from Redis list
+   - Total notifications by status from database COUNT query
+3. **Route**: `GET /api/metrics`
+
+**Commit**: "feat: real-time metrics endpoint"
+
+---
+
+## Phase 7c — Structured Logging (TDD)
+
+**Goal**: JSON-formatted logs with `correlation_id` in every log entry.
+
+### Tests first:
+- Unit: Log formatter produces valid JSON with required fields
+- Unit: Correlation ID is included in log output
+
+### Implementation:
+
+1. Configure a `json` log channel in `config/logging.php` using a custom formatter
+2. Formatter outputs JSON with: `timestamp`, `level`, `message`, `correlation_id`, `notification_id`, `channel` (when available)
+3. Set as default log channel in docker-compose environment
+4. Ensure `correlation_id` propagates from middleware into jobs via the notification record
+
+**Commit**: "feat: structured JSON logging with correlation IDs"
+
+---
+
+## Phase 7d — Distributed Tracing (TDD)
+
+**Goal**: Track every status transition for each notification.
+
+### Tests first:
+- Feature: Creating a notification creates a "created" log entry
+- Feature: Delivery creates "processing" and "delivered" log entries
+- Feature: Trace endpoint returns ordered entries for a notification
+- Feature: Trace endpoint returns 404 for non-existent notification
+
+### Implementation:
+
+1. **Migration**: `notification_logs` table — `id` UUID, `notification_id` FK, `correlation_id`, `event` string, `details` JSON nullable, `created_at`
+2. **`NotificationLogger`** service — called from `SendNotificationJob` and `NotificationService` on every status change
+   - Events: `created`, `queued`, `processing`, `delivered`, `failed`, `retrying`, `permanently_failed`, `cancelled`
+3. **Endpoint**: `GET /api/notifications/{id}/trace` — returns ordered log entries
+
+**Commit**: "feat: distributed tracing with notification status logs"
 
 ---
 
