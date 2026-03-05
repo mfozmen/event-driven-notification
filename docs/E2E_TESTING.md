@@ -19,6 +19,33 @@ docker compose exec app php artisan migrate --force
 
 ---
 
+## Services Health Check
+
+After `docker compose up -d`, verify all services are accessible. If any of these fail after a clean `docker compose down -v && docker compose up -d`, it's a bug.
+
+| Service | URL | Expected |
+|---------|-----|----------|
+| **Swagger UI** | http://localhost:8080/api/documentation | Loads with all 6 endpoints documented (notifications CRUD + batch) |
+| **Horizon Dashboard** | http://localhost:8080/horizon | Loads, shows 3 supervisors: `notification-worker-high`, `notification-worker-normal`, `notification-worker-low` |
+| **Adminer** | http://localhost:8081 | Loads login page. Connect with: Server `mysql`, User `laravel`, Password `secret`, Database `notification_db` |
+| **Redis Commander** | http://localhost:8082 | Loads, shows Redis keys (queues, horizon data, rate limiter counters) |
+
+Swagger UI at http://localhost:8080/api/documentation must render without errors — no "Unable to render this definition" or "The provided definition does not specify a valid version field" messages. All endpoints should be visible and expandable. Verify by checking that the page shows the API title "Event-Driven Notification API" and lists all 6 operations (GET/POST/PATCH across notifications and batch).
+
+```bash
+# Quick verification (all should return HTTP 200)
+curl -s -o /dev/null -w "Swagger:          %{http_code}\n" http://localhost:8080/api/documentation
+curl -s -o /dev/null -w "Horizon:          %{http_code}\n" http://localhost:8080/horizon
+curl -s -o /dev/null -w "Adminer:          %{http_code}\n" http://localhost:8081
+curl -s -o /dev/null -w "Redis Commander:  %{http_code}\n" http://localhost:8082
+
+# Verify Swagger spec is valid OpenAPI 3.0 with all endpoints
+curl -s http://localhost:8080/docs/api-docs.json | grep -o '"openapi":"3.0.0"'
+curl -s http://localhost:8080/docs/api-docs.json | grep -c '/api/notifications'  # should be 5 (paths)
+```
+
+---
+
 ## Automated Checks
 
 ```bash
