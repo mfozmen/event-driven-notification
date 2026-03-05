@@ -15,11 +15,11 @@ class ListNotificationsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['sometimes', Rule::enum(Status::class)],
-            'channel' => ['sometimes', Rule::enum(Channel::class)],
-            'date_from' => ['sometimes', 'date'],
-            'date_to' => ['sometimes', 'date'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'status' => ['sometimes', 'nullable', Rule::enum(Status::class)],
+            'channel' => ['sometimes', 'nullable', Rule::enum(Channel::class)],
+            'date_from' => ['sometimes', 'nullable', 'date'],
+            'date_to' => ['sometimes', 'nullable', 'date', 'after_or_equal:date_from'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
             'cursor' => ['sometimes', 'nullable', 'string'],
         ];
     }

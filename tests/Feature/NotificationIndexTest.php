@@ -113,3 +113,69 @@ test('index returns results when cursor is empty string', function () {
     $response->assertStatus(200)
         ->assertJsonCount(3, 'data');
 });
+
+test('index ignores empty string filter values', function () {
+    Notification::factory()->count(2)->create();
+
+    $response = $this->getJson('/api/notifications?status=&channel=&per_page=&date_from=&date_to=');
+
+    $response->assertStatus(200)
+        ->assertJsonCount(2, 'data');
+});
+
+test('index returns 422 for invalid channel value', function () {
+    $response = $this->getJson('/api/notifications?channel=telegram');
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['channel']);
+});
+
+test('index returns 422 for zero per_page', function () {
+    $response = $this->getJson('/api/notifications?per_page=0');
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['per_page']);
+});
+
+test('index returns 422 for negative per_page', function () {
+    $response = $this->getJson('/api/notifications?per_page=-1');
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['per_page']);
+});
+
+test('index returns 422 for per_page exceeding maximum', function () {
+    $response = $this->getJson('/api/notifications?per_page=99999');
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['per_page']);
+});
+
+test('index returns 422 for non-numeric per_page', function () {
+    $response = $this->getJson('/api/notifications?per_page=abc');
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['per_page']);
+});
+
+test('index returns 422 for invalid date format', function () {
+    $response = $this->getJson('/api/notifications?date_from=not-a-date');
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['date_from']);
+});
+
+test('index returns 422 when date_from is after date_to', function () {
+    $response = $this->getJson('/api/notifications?date_from=2026-12-31&date_to=2026-01-01');
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['date_to']);
+});
+
+test('index handles invalid cursor value gracefully', function () {
+    Notification::factory()->count(2)->create();
+
+    $response = $this->getJson('/api/notifications?cursor=not-a-valid-cursor');
+
+    $response->assertStatus(200);
+});

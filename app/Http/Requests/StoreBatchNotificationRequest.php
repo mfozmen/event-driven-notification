@@ -19,7 +19,7 @@ class StoreBatchNotificationRequest extends FormRequest
             'notifications.*.recipient' => ['required', 'string'],
             'notifications.*.channel' => ['required', Rule::enum(Channel::class)],
             'notifications.*.content' => ['required', 'string'],
-            'notifications.*.priority' => ['sometimes', Rule::enum(Priority::class)],
+            'notifications.*.priority' => ['sometimes', 'nullable', Rule::enum(Priority::class)],
         ];
     }
 
@@ -33,15 +33,25 @@ class StoreBatchNotificationRequest extends FormRequest
             }
 
             foreach ($notifications as $index => $notification) {
-                if (
-                    isset($notification['channel'])
-                    && $notification['channel'] === 'sms'
-                    && isset($notification['content'])
-                    && strlen($notification['content']) > 160
-                ) {
+                if (! isset($notification['channel']) || ! isset($notification['content'])) {
+                    continue;
+                }
+
+                $channel = $notification['channel'];
+                $contentLength = strlen($notification['content']);
+
+                $maxLength = match ($channel) {
+                    'sms' => 160,
+                    'email' => 10000,
+                    'push' => 500,
+                    default => null,
+                };
+
+                if ($maxLength !== null && $contentLength > $maxLength) {
+                    $channelName = strtoupper($channel);
                     $validator->errors()->add(
                         "notifications.{$index}.content",
-                        'SMS content must not exceed 160 characters.'
+                        "{$channelName} content must not exceed {$maxLength} characters."
                     );
                 }
             }
