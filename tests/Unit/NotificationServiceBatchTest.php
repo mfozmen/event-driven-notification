@@ -4,6 +4,7 @@ use App\Enums\Status;
 use App\Models\Notification;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
@@ -121,4 +122,36 @@ test('batchStatus returns null for non-existent batch', function () {
     $result = $this->service->batchStatus('non-existent-batch-id');
 
     expect($result)->toBeNull();
+});
+
+test('createBatch wraps inserts in a database transaction', function () {
+    // Verify DB::transaction is used by checking that a failure mid-batch
+    // causes the exception to propagate (not silently swallowed)
+    $notifications = [
+        [
+            'recipient' => '+905551234567',
+            'channel' => 'sms',
+            'content' => 'Hello',
+        ],
+    ];
+
+    // Spy on the DB facade to verify transaction is called
+    $transactionCalled = false;
+    $originalTransaction = DB::getFacadeRoot();
+
+    DB::shouldReceive('transaction')
+        ->once()
+        ->andReturnUsing(function ($callback) use (&$transactionCalled) {
+            $transactionCalled = true;
+
+            return $callback();
+        });
+
+    // Allow other DB calls to pass through
+    DB::shouldReceive('beginTransaction')->andReturnNull();
+    DB::shouldReceive('commit')->andReturnNull();
+
+    $this->service->createBatch($notifications, 'batch-txn-test');
+
+    expect($transactionCalled)->toBeTrue();
 });

@@ -7,6 +7,7 @@ use App\Listeners\QueueNotificationListener;
 use App\Models\Notification;
 use App\Services\NotificationLogger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
@@ -72,4 +73,19 @@ test('handle dispatches job to low queue for low priority', function () {
     $listener->handle(new NotificationCreated($notification));
 
     Queue::assertPushedOn('low', SendNotificationJob::class);
+});
+
+test('handle does not throw when internal error occurs', function () {
+    Queue::fake();
+    Log::spy();
+
+    $logger = Mockery::mock(NotificationLogger::class);
+    $logger->shouldReceive('log')->andThrow(new \RuntimeException('DB connection lost'));
+
+    $notification = Notification::factory()->create(['status' => Status::PENDING]);
+
+    $listener = new QueueNotificationListener($logger);
+    $listener->handle(new NotificationCreated($notification));
+
+    Log::shouldHaveReceived('error')->once();
 });
