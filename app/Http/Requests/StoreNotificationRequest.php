@@ -20,6 +20,7 @@ class StoreNotificationRequest extends FormRequest
             'content' => ['required', 'string'],
             'priority' => ['sometimes', 'nullable', Rule::enum(Priority::class)],
             'idempotency_key' => ['sometimes', 'nullable', 'string'],
+            'scheduled_at' => ['sometimes', 'nullable', 'date'],
         ];
 
         match ($this->input('channel')) {
