@@ -28,6 +28,7 @@ No `.env` file needed — all configuration lives in `docker-compose.yml`.
 | **Redis Commander** | http://localhost:8082 | Inspect Redis keys, queue data, rate limiter counters |
 | **Swagger API Docs** | http://localhost:8080/api/documentation | Interactive API docs (run `php artisan l5-swagger:generate` first) |
 | **Scheduler** | — | Runs `notifications:process-stuck` and `notifications:process-scheduled` every minute |
+| **Reverb** (WebSocket) | ws://localhost:8085 | Real-time notification status updates via WebSocket |
 
 ---
 
@@ -249,6 +250,21 @@ curl -X POST http://localhost:8080/api/notifications \
 
 The `content` field is rendered from the template: `"Hello Alice, welcome to Acme Corp!"`. When `template_id` is provided, `content` is optional — the template generates it. If both are provided, the template takes precedence.
 
+### WebSocket Real-Time Updates
+
+Subscribe to notification status changes in real-time via WebSocket (Laravel Reverb):
+
+- **Channel**: `notifications.{notificationId}` (public)
+- **Event**: `notification.status.updated`
+- **Payload**: `{ "id": "uuid", "status": "delivered", "attempts": 1, "updated_at": "ISO8601" }`
+
+Events are broadcast on every status transition: `queued`, `delivered`, `retrying`, `permanently_failed`, `cancelled`.
+
+Connect via any Pusher-compatible WebSocket client:
+```
+ws://localhost:8085/app/notification-key
+```
+
 ---
 
 ## Tech Stack
@@ -391,5 +407,7 @@ The current architecture handles moderate scale well. At millions of notificatio
 **Template system** — `NotificationTemplate` model with `render(array $variables): string` method performs `{{variable}}` substitution. Templates are managed via full CRUD at `/api/templates`. When creating a notification with `template_id`, the service resolves the template, renders content with provided `template_variables`, and stores the rendered string in the `content` field. Missing variables return `422`. If both `template_id` and `content` are provided, the template takes precedence. Templates referenced by notifications cannot be deleted (returns `409`). The foreign key uses `nullOnDelete` as a safety net — the rendered content is already stored in the notification.
 
 **Swagger/OpenAPI annotations** — All endpoints annotated using PHP 8 attributes (`OpenApi\Attributes`). Four tag groups organize the API: Notifications, Batch, Templates, Observability. The `POST /api/notifications` annotation reflects optional `content` (when using templates), `scheduled_at`, `template_id`, and `template_variables` fields. Interactive docs available at `/api/documentation`.
+
+**WebSocket real-time updates** — `NotificationStatusUpdated` event implements `ShouldBroadcast`, broadcasting on a public `notifications.{notificationId}` channel via Laravel Reverb. Fired on every status transition: `queued` (from listener), `delivered`, `retrying`, `permanently_failed` (from job), and `cancelled` (from service). Payload includes `id`, `status`, `attempts`, and `updated_at`. Uses public channels for simplicity — any Pusher-compatible WebSocket client can subscribe. Reverb runs as a separate Docker service on port 8085.
 
 **GitHub Actions CI** — Automated pipeline runs on push and PR to `main`. Steps: Pint code style check, PHPStan level 6 static analysis, full Pest test suite. Uses SQLite in-memory (same as local testing) — no MySQL/Redis services needed in CI. PHP 8.4 with `shivammathur/setup-php`.

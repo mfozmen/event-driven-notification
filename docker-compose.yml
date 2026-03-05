@@ -26,6 +26,13 @@ x-app-environment: &app-environment
   WEBHOOK_SITE_UUID: "cc03cf16-de43-4cd0-9696-da49e73a35f6"
   WEBHOOK_SITE_URL: https://webhook.site
 
+  BROADCAST_CONNECTION: reverb
+  REVERB_APP_ID: notification-app
+  REVERB_APP_KEY: notification-key
+  REVERB_APP_SECRET: notification-secret
+  REVERB_HOST: reverb
+  REVERB_PORT: 8085
+
   NOTIFICATION_RATE_LIMIT: 100
   NOTIFICATION_MAX_ATTEMPTS: 3
   NOTIFICATION_RETRY_BASE_DELAY: 30
@@ -139,6 +146,29 @@ services:
     volumes: *app-volumes
     environment:
       <<: *app-environment
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - notification_network
+
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification_reverb
+    restart: unless-stopped
+    working_dir: /var/www
+    command: php artisan reverb:start --host=0.0.0.0 --port=8085
+    ports:
+      - "8085:8085"
+    volumes: *app-volumes
+    environment:
+      <<: *app-environment
+      REVERB_HOST: 0.0.0.0
+      REVERB_PORT: 8085
     depends_on:
       mysql:
         condition: service_healthy
