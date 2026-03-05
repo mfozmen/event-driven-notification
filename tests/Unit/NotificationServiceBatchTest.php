@@ -11,7 +11,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Queue::fake();
-    $this->service = new NotificationService;
+    $this->service = app(NotificationService::class);
 });
 
 test('createBatch returns batch_id and count', function () {

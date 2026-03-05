@@ -14,7 +14,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Queue::fake();
-    $this->service = new NotificationService;
+    $this->service = app(NotificationService::class);
 });
 
 // --- create() ---

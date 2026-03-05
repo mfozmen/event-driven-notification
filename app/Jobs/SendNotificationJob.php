@@ -8,6 +8,7 @@ use App\Enums\Status;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
 use App\Services\CircuitBreaker;
+use App\Services\NotificationLogger;
 use App\Services\RetryStrategy;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -49,6 +50,9 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
+        $logger = app(NotificationLogger::class);
+        $logger->log($notification, 'processing');
+
         $start = microtime(true);
 
         try {
@@ -62,20 +66,21 @@ class SendNotificationJob implements ShouldQueue
                     'status' => Status::DELIVERED,
                     'delivered_at' => now(),
                 ]);
+                $logger->log($notification, 'delivered');
                 $circuitBreaker->recordSuccess($notification->channel);
             } else {
                 $circuitBreaker->recordFailure($notification->channel);
-                $this->handleFailure($notification, $result, $retryStrategy);
+                $this->handleFailure($notification, $result, $retryStrategy, $logger);
             }
         } catch (\Throwable $e) {
             $this->recordMetrics($notification, false, $start);
             $circuitBreaker->recordFailure($notification->channel);
             $result = DeliveryResult::failure($e->getMessage(), true);
-            $this->handleFailure($notification, $result, $retryStrategy);
+            $this->handleFailure($notification, $result, $retryStrategy, $logger);
         }
     }
 
-    private function handleFailure(Notification $notification, DeliveryResult $result, RetryStrategy $retryStrategy): void
+    private function handleFailure(Notification $notification, DeliveryResult $result, RetryStrategy $retryStrategy, NotificationLogger $logger): void
     {
         if ($retryStrategy->shouldRetry($result, $notification->attempts, $notification->max_attempts)) {
             $delay = $retryStrategy->calculateDelay($notification->attempts);
@@ -84,6 +89,7 @@ class SendNotificationJob implements ShouldQueue
                 'next_retry_at' => now()->addSeconds($delay),
                 'error_message' => $result->errorMessage,
             ]);
+            $logger->log($notification, 'retrying', ['error' => $result->errorMessage, 'delay' => $delay]);
             $this->release($delay);
         } else {
             $notification->update([
@@ -91,6 +97,7 @@ class SendNotificationJob implements ShouldQueue
                 'failed_at' => now(),
                 'error_message' => $result->errorMessage,
             ]);
+            $logger->log($notification, 'permanently_failed', ['error' => $result->errorMessage]);
         }
     }
 
