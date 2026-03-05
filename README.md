@@ -25,7 +25,7 @@ No `.env` file needed — all configuration lives in `docker-compose.yml`.
 | **Adminer** (MySQL GUI) | http://localhost:8081 | Server: `mysql`, User: `laravel`, Pass: `secret`, DB: `notification_db` |
 | **Redis Commander** | http://localhost:8082 | Inspect Redis keys, queue data, rate limiter counters |
 | **Swagger API Docs** | http://localhost:8080/api/documentation | Interactive API docs (run `php artisan l5-swagger:generate` first) |
-| **Scheduler** | — | Runs `notifications:process-stuck` every minute to catch stuck retrying notifications |
+| **Scheduler** | — | Runs `notifications:process-stuck` and `notifications:process-scheduled` every minute |
 
 ---
 
@@ -167,6 +167,86 @@ curl http://localhost:8080/api/notifications/{id}/trace
 
 Returns an ordered list of status transition log entries for a notification: `created → queued → processing → delivered` (or `retrying → permanently_failed`). Each entry includes `event`, `correlation_id`, `details`, and `created_at`.
 
+### Scheduled Notifications
+
+Send a notification at a specific time by including `scheduled_at`:
+
+```bash
+curl -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient": "+905551234567",
+    "channel": "sms",
+    "content": "Reminder: your appointment is tomorrow",
+    "scheduled_at": "2026-03-10T09:00:00Z"
+  }'
+```
+
+The notification stays in `pending` status until `scheduled_at` arrives. The `notifications:process-scheduled` command (runs every minute) picks up due notifications, sets status to `queued`, and dispatches them to the priority queue. Past `scheduled_at` values are queued immediately. Omitting `scheduled_at` queues immediately (existing behavior).
+
+### Create Template
+
+```bash
+curl -X POST http://localhost:8080/api/templates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "welcome-sms",
+    "channel": "sms",
+    "body_template": "Hello {{name}}, welcome to {{company}}!",
+    "variables": ["name", "company"]
+  }'
+```
+
+### List Templates
+
+```bash
+curl http://localhost:8080/api/templates
+```
+
+### Get Template
+
+```bash
+curl http://localhost:8080/api/templates/{id}
+```
+
+### Update Template
+
+```bash
+curl -X PUT http://localhost:8080/api/templates/{id} \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "welcome-sms-v2",
+    "channel": "sms",
+    "body_template": "Hi {{name}}, thanks for joining {{company}}!",
+    "variables": ["name", "company"]
+  }'
+```
+
+### Delete Template
+
+```bash
+curl -X DELETE http://localhost:8080/api/templates/{id}
+```
+
+Returns `204` on success. Returns `409` if the template is referenced by existing notifications.
+
+### Create Notification from Template
+
+Instead of providing `content` directly, reference a template:
+
+```bash
+curl -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient": "+905551234567",
+    "channel": "sms",
+    "template_id": "template-uuid-here",
+    "template_variables": {"name": "Alice", "company": "Acme Corp"}
+  }'
+```
+
+The `content` field is rendered from the template: `"Hello Alice, welcome to Acme Corp!"`. When `template_id` is provided, `content` is optional — the template generates it. If both are provided, the template takes precedence.
+
 ---
 
 ## Tech Stack
@@ -231,6 +311,9 @@ Inside Docker prefix with `docker-compose exec app`.
 ```bash
 # Re-queue stuck retrying notifications (runs automatically every minute via scheduler service)
 php artisan notifications:process-stuck
+
+# Queue scheduled notifications whose time has arrived (runs automatically every minute via scheduler service)
+php artisan notifications:process-scheduled
 ```
 
 ---
@@ -300,3 +383,7 @@ The current architecture handles moderate scale well. At millions of notificatio
 **Structured JSON logging** — Custom `JsonLogFormatter` implements Monolog's `FormatterInterface`. Outputs one JSON object per line with `timestamp`, `level`, `message`, and optional `correlation_id`, `notification_id`, `channel` from context. Configured as the `json` log channel in `config/logging.php`, set as default via `LOG_CHANNEL=json` in `docker-compose.yml`.
 
 **Distributed tracing** — `NotificationLogger` service records every status transition to the `notification_logs` table: `created`, `queued`, `processing`, `delivered`, `retrying`, `permanently_failed`, `cancelled`. Each log entry includes `notification_id`, `correlation_id`, `event`, optional `details` (JSON), and `created_at`. The `GET /api/notifications/{id}/trace` endpoint returns these entries in chronological order, providing a complete audit trail for each notification.
+
+**Scheduled notifications** — Notifications with a future `scheduled_at` stay in `pending` status. The `QueueNotificationListener` checks `scheduled_at` and skips dispatch if it's in the future. The `notifications:process-scheduled` command runs every minute, picks up pending notifications where `scheduled_at <= now()`, and dispatches them to the correct priority queue. Past `scheduled_at` values are queued immediately on creation. The `notifications:process-stuck` command has a `whereNull('scheduled_at')` guard so it doesn't interfere with scheduled pending notifications.
+
+**Template system** — `NotificationTemplate` model with `render(array $variables): string` method performs `{{variable}}` substitution. Templates are managed via full CRUD at `/api/templates`. When creating a notification with `template_id`, the service resolves the template, renders content with provided `template_variables`, and stores the rendered string in the `content` field. Missing variables return `422`. If both `template_id` and `content` are provided, the template takes precedence. Templates referenced by notifications cannot be deleted (returns `409`). The foreign key uses `nullOnDelete` as a safety net — the rendered content is already stored in the notification.
