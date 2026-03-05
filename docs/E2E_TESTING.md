@@ -426,9 +426,111 @@ docker compose logs app --tail=20
 
 ---
 
+## Scheduled Notification Tests (Phase 8a)
+
+### 26. Create Notification with Future scheduled_at
+
+```bash
+# Create notification scheduled 2 minutes in the future
+SCHEDULED=$(date -u -d "+2 minutes" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -v+2M +"%Y-%m-%dT%H:%M:%SZ")
+curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -d "{\"recipient\": \"+905551234567\", \"channel\": \"sms\", \"content\": \"Scheduled test\", \"scheduled_at\": \"$SCHEDULED\"}"
+```
+
+**Expected:** HTTP 201, `status` is `pending` (NOT `queued`). The notification stays pending until its scheduled time arrives.
+
+### 27. Process Scheduled Notifications
+
+```bash
+# Option 1: Wait 2 minutes for the scheduler to pick it up automatically
+# Option 2: Run the command manually
+docker compose exec app php artisan notifications:process-scheduled
+```
+
+**Expected:** `Processed 1 scheduled notifications.` Check the notification — `status` should now be `queued`, then `delivered` after Horizon processes it.
+
+### 28. Create Notification with Past scheduled_at
+
+```bash
+curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{"recipient": "+905551234567", "channel": "sms", "content": "Past scheduled test", "scheduled_at": "2020-01-01T00:00:00Z"}'
+```
+
+**Expected:** HTTP 201, `status` is `queued` (immediately queued since `scheduled_at` is in the past). Eventually becomes `delivered`.
+
+---
+
+## Template System Tests (Phase 8b)
+
+### 29. Create a Template
+
+```bash
+curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/templates \
+  -H "Content-Type: application/json" \
+  -d '{"name": "welcome-sms", "channel": "sms", "body_template": "Hello {{name}}, welcome to {{company}}!", "variables": ["name", "company"]}'
+```
+
+**Expected:** HTTP 201, response contains `id`, `name`, `channel`, `body_template`, and `variables`.
+
+### 30. List Templates
+
+```bash
+curl -s http://localhost:8080/api/templates
+```
+
+**Expected:** HTTP 200, `data` array contains the `welcome-sms` template created in step 29.
+
+### 31. Create Notification Using Template
+
+```bash
+# Use the template ID from step 29
+curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{"recipient": "+905551234567", "channel": "sms", "template_id": "{TEMPLATE_ID}", "template_variables": {"name": "Alice", "company": "Acme Corp"}}'
+```
+
+**Expected:** HTTP 201, `content` is `"Hello Alice, welcome to Acme Corp!"` (rendered from template). No `content` field was sent in the request — it was generated from the template.
+
+### 32. Create Notification with Missing Template Variable
+
+```bash
+curl -s -w "\nHTTP_STATUS: %{http_code}" -X POST http://localhost:8080/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{"recipient": "+905551234567", "channel": "sms", "template_id": "{TEMPLATE_ID}", "template_variables": {"name": "Alice"}}'
+```
+
+**Expected:** HTTP 422, validation error about missing required template variable `company`.
+
+### 33. Delete Unreferenced Template
+
+```bash
+# Create a new template with no notifications referencing it
+RESPONSE=$(curl -s -X POST http://localhost:8080/api/templates \
+  -H "Content-Type: application/json" \
+  -d '{"name": "temp-template", "channel": "email", "body_template": "Temp body", "variables": []}')
+TEMP_ID=$(echo $RESPONSE | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+curl -s -w "\nHTTP_STATUS: %{http_code}" -X DELETE http://localhost:8080/api/templates/$TEMP_ID
+```
+
+**Expected:** HTTP 204 (no content). Template is deleted.
+
+### 34. Delete Template Referenced by Notification
+
+```bash
+# Try to delete the welcome-sms template (referenced by the notification from step 31)
+curl -s -w "\nHTTP_STATUS: %{http_code}" -X DELETE http://localhost:8080/api/templates/{TEMPLATE_ID}
+```
+
+**Expected:** HTTP 409 Conflict. Template cannot be deleted because it's referenced by existing notifications.
+
+---
+
 ## Database Verification
 
-### 26. Verify in Adminer
+### 35. Verify in Adminer
 
 Open http://localhost:8081, connect with Server `mysql`, User `laravel`, Password `secret`, Database `notification_db`:
 
