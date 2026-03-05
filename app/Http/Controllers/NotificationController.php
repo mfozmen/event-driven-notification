@@ -57,13 +57,16 @@ class NotificationController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['recipient', 'channel', 'content'],
+                required: ['recipient', 'channel'],
                 properties: [
                     new OA\Property(property: 'recipient', type: 'string', example: '+905551234567'),
                     new OA\Property(property: 'channel', type: 'string', enum: ['sms', 'email', 'push']),
-                    new OA\Property(property: 'content', type: 'string', example: 'Hello, world!'),
+                    new OA\Property(property: 'content', type: 'string', example: 'Hello, world!', nullable: true),
                     new OA\Property(property: 'priority', type: 'string', enum: ['high', 'normal', 'low'], nullable: true),
                     new OA\Property(property: 'idempotency_key', type: 'string', nullable: true),
+                    new OA\Property(property: 'scheduled_at', type: 'string', format: 'date-time', nullable: true),
+                    new OA\Property(property: 'template_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'template_variables', type: 'object', nullable: true),
                 ]
             )
         ),
@@ -126,6 +129,38 @@ class NotificationController extends Controller
         return new NotificationResource($notification);
     }
 
+    #[OA\Get(
+        path: '/api/notifications/{id}/trace',
+        summary: 'Get notification trace',
+        tags: ['Notifications'],
+        description: 'Returns an ordered list of status transition log entries for a notification.',
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Trace log entries',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(
+                            property: 'data',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'event', type: 'string', example: 'created'),
+                                    new OA\Property(property: 'correlation_id', type: 'string', example: 'abc-123'),
+                                    new OA\Property(property: 'details', type: 'object', nullable: true),
+                                    new OA\Property(property: 'created_at', type: 'string', format: 'date-time'),
+                                ]
+                            )
+                        ),
+                    ]
+                )
+            ),
+            new OA\Response(response: 404, description: 'Notification not found'),
+        ]
+    )]
     public function trace(Notification $notification): JsonResponse
     {
         $logs = NotificationLog::where('notification_id', $notification->id)

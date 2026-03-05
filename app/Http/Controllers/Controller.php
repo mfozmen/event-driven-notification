@@ -12,6 +12,8 @@ use OpenApi\Attributes as OA;
 #[OA\Server(url: 'http://localhost:8080', description: 'Local')]
 #[OA\Tag(name: 'Notifications', description: 'Single notification operations')]
 #[OA\Tag(name: 'Batch', description: 'Batch operations')]
+#[OA\Tag(name: 'Templates', description: 'Notification template operations')]
+#[OA\Tag(name: 'Observability', description: 'Health check and metrics')]
 abstract class Controller
 {
     //
