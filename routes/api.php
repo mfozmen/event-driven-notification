@@ -15,4 +15,5 @@ Route::post('/notifications', [NotificationController::class, 'store']);
 Route::post('/notifications/batch', [BatchNotificationController::class, 'store']);
 Route::get('/notifications/batch/{batchId}', [BatchNotificationController::class, 'show']);
 Route::get('/notifications/{notification}', [NotificationController::class, 'show']);
+Route::get('/notifications/{notification}/trace', [NotificationController::class, 'trace']);
 Route::patch('/notifications/{notification}/cancel', [NotificationController::class, 'cancel']);

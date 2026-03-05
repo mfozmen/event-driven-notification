@@ -5,6 +5,7 @@ use App\Events\NotificationCreated;
 use App\Jobs\SendNotificationJob;
 use App\Listeners\QueueNotificationListener;
 use App\Models\Notification;
+use App\Services\NotificationLogger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 
@@ -14,7 +15,7 @@ test('handle sets notification status to queued', function () {
     Queue::fake();
     $notification = Notification::factory()->create(['status' => Status::PENDING]);
 
-    $listener = new QueueNotificationListener;
+    $listener = new QueueNotificationListener(app(NotificationLogger::class));
     $listener->handle(new NotificationCreated($notification));
 
     $notification->refresh();
@@ -26,7 +27,7 @@ test('handle dispatches SendNotificationJob', function () {
     Queue::fake();
     $notification = Notification::factory()->create(['status' => Status::PENDING]);
 
-    $listener = new QueueNotificationListener;
+    $listener = new QueueNotificationListener(app(NotificationLogger::class));
     $listener->handle(new NotificationCreated($notification));
 
     Queue::assertPushed(SendNotificationJob::class, function ($job) use ($notification) {
@@ -41,7 +42,7 @@ test('handle dispatches job to high queue for high priority', function () {
         'priority' => 'high',
     ]);
 
-    $listener = new QueueNotificationListener;
+    $listener = new QueueNotificationListener(app(NotificationLogger::class));
     $listener->handle(new NotificationCreated($notification));
 
     Queue::assertPushedOn('high', SendNotificationJob::class);
@@ -54,7 +55,7 @@ test('handle dispatches job to normal queue for normal priority', function () {
         'priority' => 'normal',
     ]);
 
-    $listener = new QueueNotificationListener;
+    $listener = new QueueNotificationListener(app(NotificationLogger::class));
     $listener->handle(new NotificationCreated($notification));
 
     Queue::assertPushedOn('normal', SendNotificationJob::class);
@@ -67,7 +68,7 @@ test('handle dispatches job to low queue for low priority', function () {
         'priority' => 'low',
     ]);
 
-    $listener = new QueueNotificationListener;
+    $listener = new QueueNotificationListener(app(NotificationLogger::class));
     $listener->handle(new NotificationCreated($notification));
 
     Queue::assertPushedOn('low', SendNotificationJob::class);

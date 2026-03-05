@@ -17,6 +17,10 @@ class NotificationService
 {
     private const DEFAULT_PER_PAGE = 15;
 
+    public function __construct(
+        private NotificationLogger $logger,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $filters
      * @return array<string, mixed>
@@ -62,6 +66,8 @@ class NotificationService
             'correlation_id' => $data['correlation_id'],
             'idempotency_key' => $data['idempotency_key'] ?? null,
         ]);
+
+        $this->logger->log($notification, 'created');
 
         NotificationCreated::dispatch($notification);
 
@@ -120,6 +126,8 @@ class NotificationService
         }
 
         $notification->update(['status' => Status::CANCELLED]);
+
+        $this->logger->log($notification, 'cancelled');
 
         return $notification;
     }

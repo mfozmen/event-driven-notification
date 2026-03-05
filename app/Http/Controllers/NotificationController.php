@@ -6,6 +6,7 @@ use App\Http\Requests\ListNotificationsRequest;
 use App\Http\Requests\StoreNotificationRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
+use App\Models\NotificationLog;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -123,5 +124,21 @@ class NotificationController extends Controller
         $notification = $this->notificationService->cancel($notification);
 
         return new NotificationResource($notification);
+    }
+
+    public function trace(Notification $notification): JsonResponse
+    {
+        $logs = NotificationLog::where('notification_id', $notification->id)
+            ->orderBy('created_at')
+            ->get();
+
+        return response()->json([
+            'data' => $logs->map(fn (NotificationLog $log) => [
+                'event' => $log->event,
+                'correlation_id' => $log->correlation_id,
+                'details' => $log->details,
+                'created_at' => $log->created_at->toIso8601String(),
+            ]),
+        ]);
     }
 }
