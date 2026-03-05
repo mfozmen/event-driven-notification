@@ -8,6 +8,7 @@ use App\DTOs\CreateNotificationResult;
 use App\Enums\Priority;
 use App\Enums\Status;
 use App\Events\NotificationCreated;
+use App\Events\NotificationStatusUpdated;
 use App\Models\Notification;
 use App\Models\NotificationTemplate;
 use Illuminate\Database\Eloquent\Builder;
@@ -152,6 +153,8 @@ class NotificationService
         $notification->update(['status' => Status::CANCELLED]);
 
         $this->logger->log($notification, 'cancelled');
+
+        NotificationStatusUpdated::dispatch($notification);
 
         return $notification;
     }

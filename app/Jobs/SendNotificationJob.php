@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Channels\ChannelProviderFactory;
 use App\DTOs\DeliveryResult;
 use App\Enums\Status;
+use App\Events\NotificationStatusUpdated;
 use App\Models\Notification;
 use App\Services\ChannelRateLimiter;
 use App\Services\CircuitBreaker;
@@ -68,6 +69,7 @@ class SendNotificationJob implements ShouldQueue
                     'delivered_at' => now(),
                 ]);
                 $this->safeLog($logger, $notification, 'delivered');
+                NotificationStatusUpdated::dispatch($notification);
                 $circuitBreaker->recordSuccess($notification->channel);
             } else {
                 $circuitBreaker->recordFailure($notification->channel);
@@ -91,6 +93,7 @@ class SendNotificationJob implements ShouldQueue
                 'error_message' => $result->errorMessage,
             ]);
             $this->safeLog($logger, $notification, 'retrying', ['error' => $result->errorMessage, 'delay' => $delay]);
+            NotificationStatusUpdated::dispatch($notification);
             $this->release($delay);
         } else {
             $notification->update([
@@ -99,6 +102,7 @@ class SendNotificationJob implements ShouldQueue
                 'error_message' => $result->errorMessage,
             ]);
             $this->safeLog($logger, $notification, 'permanently_failed', ['error' => $result->errorMessage]);
+            NotificationStatusUpdated::dispatch($notification);
         }
     }
 

@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Events\NotificationCreated;
+use App\Events\NotificationStatusUpdated;
 use App\Jobs\SendNotificationJob;
 use App\Services\NotificationLogger;
 use Illuminate\Support\Facades\Log;
@@ -25,6 +26,8 @@ class QueueNotificationListener
             $notification->update(['status' => 'queued']);
 
             $this->logger->log($notification, 'queued');
+
+            NotificationStatusUpdated::dispatch($notification);
 
             SendNotificationJob::dispatch($notification->id)
                 ->onQueue($notification->priority->value);
