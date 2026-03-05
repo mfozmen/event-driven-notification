@@ -46,7 +46,12 @@ If Redis crashes, a recovery command re-queues notifications stuck in `queued` s
 - ✅ Phase 6a — Retry strategy with exponential backoff and jitter
 - ✅ Phase 6b — Circuit breaker
 - ✅ Phase 6c — Safety net command
-- 🔲 Phase 7a — Health check
+- ✅ Phase 7a — Health check
+- ✅ Phase 7b — Metrics endpoint
+- ✅ Phase 7c — Structured logging
+- ✅ Phase 7d — Distributed tracing
+- 🔲 Phase 8a — Scheduled notifications
+- 🔲 Phase 8b — Template system
 
 ---
 
@@ -402,50 +407,61 @@ Phase 4 was too large — Horizon setup, event/listener/job chain, and rate limi
 
 ---
 
-## Phase 8 — Bonus: Scheduled Notifications & Template System (TDD)
+## Phase 8a — Scheduled Notifications (TDD)
 
-### Scheduled Notifications
+**Goal**: Notifications with `scheduled_at` in the future stay `pending` until a scheduler command queues them when their time arrives.
 
-`scheduled_at` column already exists in migration.
+### Tests first:
+- Feature: Creating notification with future `scheduled_at` → 201, status stays `pending`
+- Feature: Creating notification with past `scheduled_at` → queued immediately
+- Feature: Creating notification with null `scheduled_at` → queued immediately (existing behavior)
+- Unit: `notifications:process-scheduled` picks up due notifications and queues them
+- Unit: Command ignores notifications with future `scheduled_at`
+- Unit: Command ignores non-pending notifications
+- Unit: Command outputs count of processed notifications
+- Unit: `scheduled_at` exactly equal to now → processed
+- Unit: No scheduled notifications → "Processed 0"
+- Unit: `ProcessStuckNotifications` does NOT pick up scheduled pending notifications
 
-#### Tests first:
-- Create notification with `scheduled_at` in future → stays `pending`, NOT immediately queued
-- Scheduler picks up due notifications and queues them
-- Notification with `scheduled_at` in the past is treated as immediate
-
-#### Implementation:
+### Implementation:
 - Modify `QueueNotificationListener` — if `scheduled_at` is in the future, skip dispatch
-- `ProcessScheduledNotifications` artisan command — queries `status = pending AND scheduled_at <= now AND scheduled_at IS NOT NULL`, dispatches to queue
-- Runs every minute via Laravel scheduler
-- Add `scheduler` service to `docker-compose.yml`
+- Add `scheduled_at` validation to `StoreNotificationRequest`
+- Pass `scheduled_at` through `NotificationService::create()` to model
+- Include `scheduled_at` in `NotificationResource` response
+- `ProcessScheduledNotificationsCommand` — queries `status = pending AND scheduled_at IS NOT NULL AND scheduled_at <= now()`, sets status to `queued`, dispatches to priority queue
+- Register `notifications:process-scheduled` every minute in `routes/console.php`
 
-### Template System
+**Commit**: "feat: scheduled notifications with deferred dispatch"
 
-#### Migration:
-`notification_templates` table:
-- `id` (UUID, primary)
-- `name` (string, unique)
-- `channel` (enum: sms, email, push)
-- `body_template` (text) — uses `{{variable}}` syntax
-- `variables` (JSON — list of expected variable names)
-- `created_at`, `updated_at`
+---
 
-Add to `notifications` table:
-- `template_id` (UUID, nullable, FK)
-- `template_variables` (JSON, nullable)
+## Phase 8b — Template System (TDD)
 
-#### Tests first:
-- Unit: Template rendering with variable substitution
-- Unit: Missing variable throws validation error
-- Feature: Create notification with `template_id` and `template_variables` → content rendered from template
-- Feature: Template CRUD — create, read, update, delete
+**Goal**: Support message templates with `{{variable}}` substitution.
 
-#### Implementation:
+### Migration:
+- `notification_templates` table: `id` UUID, `name` string unique, `channel` enum, `body_template` text, `variables` JSON, timestamps
+- Add to `notifications` table: `template_id` UUID nullable FK, `template_variables` JSON nullable
+
+### Tests first:
+- Unit: `NotificationTemplate::render()` substitutes variables correctly
+- Unit: `render()` throws exception when required variable is missing
+- Unit: `render()` handles extra variables gracefully (ignores them)
+- Feature: Template CRUD — create, read, list, update, delete
+- Feature: Create template with duplicate name → 422
+- Feature: Delete template referenced by notifications — decide behavior and test
+- Feature: Create notification with `template_id` and `template_variables` — content rendered
+- Feature: Create notification with `template_id` but missing variable → 422
+- Feature: Create notification with `template_id` and explicit `content` — decide precedence
+- Edge case: Template with no variables (static content)
+- Edge case: Template with special characters in body
+
+### Implementation:
 - `NotificationTemplate` model with `render(array $variables): string`
-- Template CRUD: `POST/GET/PUT/DELETE /api/templates`
-- On notification creation, if `template_id` provided, render content from template + variables, store rendered content in `content` field
+- `NotificationTemplateController` with full CRUD: `POST/GET/GET(list)/PUT/DELETE /api/templates`
+- Modify notification creation: if `template_id` provided, resolve template, render with `template_variables`, store rendered content in `content` field. `content` becomes optional when `template_id` is provided.
 
-**Commit**: "feat: scheduled notifications and template system"
+**Commit**: "feat: notification template system with variable substitution"
 
 ---
 
