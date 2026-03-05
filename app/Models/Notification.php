@@ -17,6 +17,8 @@ class Notification extends Model
 
     protected $fillable = [
         'batch_id',
+        'template_id',
+        'template_variables',
         'idempotency_key',
         'correlation_id',
         'recipient',
@@ -38,6 +40,7 @@ class Notification extends Model
         'channel' => Channel::class,
         'priority' => Priority::class,
         'status' => Status::class,
+        'template_variables' => 'array',
         'next_retry_at' => 'datetime',
         'last_attempted_at' => 'datetime',
         'delivered_at' => 'datetime',
