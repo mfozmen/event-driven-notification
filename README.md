@@ -235,6 +235,22 @@ php artisan notifications:process-stuck
 
 ---
 
+## Scaling Considerations
+
+The current architecture handles moderate scale well. At millions of notifications daily, these are the next steps:
+
+**CQRS (Command Query Responsibility Segregation)** — Separate read and write models. Writes go to MySQL, reads served from Elasticsearch or Redis-cached denormalized views. The current single-table approach works at moderate scale with proper indexing and cursor-based pagination, but read-heavy dashboards and filtering would benefit from a dedicated read store.
+
+**Database partitioning** — Partition the `notifications` table by `created_at` (monthly). Old partitions can be archived or dropped without affecting query performance on recent data. Combined with UUID v7 ordered keys, this keeps InnoDB indexes compact per partition.
+
+**Message broker** — Replace Redis queues with Kafka or RabbitMQ for guaranteed delivery, replay capability, and higher throughput. Redis queues work well for current volume but lack persistence guarantees and consumer group semantics needed at scale.
+
+**Read replicas** — Route list/filter queries to MySQL read replicas, keeping the primary for writes only. Laravel's `DB::connection('read')` makes this straightforward with minimal code changes.
+
+**Separate microservices** — Split channel providers (SMS, Email, Push) into independent services that can be deployed and scaled independently per channel. Each service consumes from its own queue topic, allowing independent scaling based on channel-specific load patterns.
+
+---
+
 ## Design Decisions
 
 **Cancellation scope** — Extended beyond just `pending` to include `queued` and `retrying` statuses. Notifications that haven't been delivered yet should be cancellable. `processing`, `delivered`, `failed`, and `permanently_failed` cannot be cancelled.
