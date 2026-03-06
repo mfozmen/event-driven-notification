@@ -12,7 +12,7 @@ A scalable notification system built with Laravel 11 that processes and delivers
 2. **Set your webhook UUID** in `docker-compose.yml` (see [Webhook.site Configuration](#webhooksite-configuration))
 3. **Start everything**:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 4. **Done** — API is live at http://localhost:8080
 
@@ -28,7 +28,7 @@ No `.env` file needed — all configuration lives in `docker-compose.yml`.
 | **Horizon Dashboard** | http://localhost:8080/horizon | Monitor queues, workers, failed jobs |
 | **Adminer** (MySQL GUI) | http://localhost:8081 | Server: `mysql`, User: `laravel`, Pass: `secret`, DB: `notification_db` |
 | **Redis Commander** | http://localhost:8082 | Inspect Redis keys, queue data, rate limiter counters |
-| **Swagger API Docs** | http://localhost:8080/api/documentation | Interactive API docs (run `php artisan l5-swagger:generate` first) |
+| **Swagger API Docs** | http://localhost:8080/api/documentation | Interactive API docs |
 | **Scheduler** | — | Runs `notifications:process-stuck` and `notifications:process-scheduled` every minute |
 | **Reverb** (WebSocket) | ws://localhost:8085 | Real-time notification status updates via WebSocket |
 
@@ -354,11 +354,11 @@ docker compose exec app php artisan test --coverage
 php artisan l5-swagger:generate
 ```
 
-Inside Docker prefix with `docker-compose exec app`.
+Inside Docker prefix with `docker compose exec app`.
 
 ### Code Quality Metrics
 
-- **251 tests**, 914 assertions
+- **256 tests**, 931 assertions
 - **PHPStan Level 6**: 0 errors
 - **PHP Insights**: Code 93.3%, Complexity 94.9%, Architecture 81.3%, Style 92.7%
 - **0 known security vulnerabilities** (`composer audit`)
