@@ -531,13 +531,15 @@ curl -s -w "\nHTTP_STATUS: %{http_code}" -X DELETE http://localhost:8080/api/tem
 
 ## WebSocket Verification (Phase 9)
 
+> **Note:** WebSocket tests require manual browser interaction. Steps are documented for manual verification.
+
 ### 35. Verify Reverb Is Running
 
 ```bash
 docker compose logs reverb --tail=5
 ```
 
-**Expected:** Logs show Reverb started successfully, listening on `0.0.0.0:8085`.
+**Expected:** Logs show `Starting server on 0.0.0.0:8085`.
 
 ```bash
 docker compose ps reverb
@@ -545,28 +547,101 @@ docker compose ps reverb
 
 **Expected:** Status is `running` (or `Up`).
 
-### 35b. WebSocket Test Client (Browser)
+```bash
+# Verify Reverb is reachable (404 is expected — no route at /)
+curl -s -o /dev/null -w "Reverb HTTP: %{http_code}\n" http://localhost:8085/
+```
 
-A browser-based test client is included at `docs/websocket-test.html`. No install needed — just open the file.
+**Expected:** HTTP 404 (confirms the server is accepting connections).
 
-1. **Open** `docs/websocket-test.html` in your browser (double-click or `file://` URL)
-2. The client connects to `ws://localhost:8085` automatically (Reverb must be running)
-3. **Create a notification** via Postman or curl:
+### 36. WebSocket Test Client — Connection (Manual Verification)
+
+1. Open `docs/websocket-test.html` in your browser (double-click or `file://` URL)
+2. The status indicator should change from `disconnected` → `connecting` → `connected`
+3. The log should show: `Connected to Reverb WebSocket server`
+
+**If it stays disconnected:** Check that Reverb is running (`docker compose ps reverb`) and that port 8085 is mapped.
+
+### 37. Full Delivery Flow via WebSocket (Manual Verification)
+
+This verifies the complete event sequence: **queued → processing → delivered**.
+
+1. Open `docs/websocket-test.html` in your browser, confirm `connected` status
+2. Create a notification:
    ```bash
    curl -s -X POST http://localhost:8080/api/notifications \
      -H "Content-Type: application/json" \
-     -d '{"recipient": "+905551234567", "channel": "sms", "content": "WebSocket test"}'
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "WebSocket delivery test"}'
    ```
-4. **Copy the notification ID** from the response
-5. **Paste the ID** into the test client input field and click **Subscribe**
-6. **Create another notification** or trigger a status change — watch the `notification.status.updated` events appear in real-time with timestamps and full payload
+3. Copy the `id` from the JSON response
+4. Paste the ID into the test client input field and click **Subscribe**
+5. The log should show: `Subscribed to notifications.{id} — waiting for events...`
 
-**Testing status transitions live:**
-- Create a notification and subscribe to it immediately — you'll see: `queued` -> `processing` -> `delivered`
-- For retry flow: set webhook.site to 500, create a notification, subscribe — you'll see: `queued` -> `processing` -> `retrying` -> `processing` -> `delivered` (after fixing webhook.site back to 202)
-- For scheduled notification: subscribe first, then run `docker compose exec app php artisan notifications:process-scheduled` — watch the status transitions appear live
+Since the notification was already created before subscribing, you won't see past events. To see the full sequence, create a new notification AFTER subscribing:
 
-**Alternative: wscat (CLI)**
+6. Subscribe to a **new** notification ID first (you'll get the ID after creating):
+   ```bash
+   # Create notification and immediately subscribe
+   RESPONSE=$(curl -s -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "WebSocket live test"}')
+   echo $RESPONSE | grep -o '"id":"[^"]*"' | head -1
+   ```
+7. Quickly paste the ID into the test client and click **Subscribe**
+
+**Expected events in the WebSocket client (in order):**
+- `notification.status.updated` with `status: "processing"` (green-yellow)
+- `notification.status.updated` with `status: "delivered"` (green)
+
+> **Note:** The `queued` event fires at creation time. If you subscribe after creation, you'll miss it. The `processing` and `delivered` events fire during Horizon job execution, which typically happens within 1-5 seconds.
+
+### 38. Cancel Flow via WebSocket (Manual Verification)
+
+This verifies that cancellation broadcasts the `cancelled` event.
+
+1. Open `docs/websocket-test.html`, confirm `connected`
+2. Create a scheduled notification (far future so it stays in `pending`):
+   ```bash
+   curl -s -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "Cancel WS test", "scheduled_at": "2099-01-01T00:00:00Z"}'
+   ```
+3. Copy the notification ID from the response
+4. Paste the ID into the test client and click **Subscribe**
+5. Cancel the notification:
+   ```bash
+   curl -s -X PATCH http://localhost:8080/api/notifications/{id}/cancel
+   ```
+
+**Expected event in the WebSocket client:**
+- `notification.status.updated` with `status: "cancelled"` (grey)
+
+### 39. Retry Flow via WebSocket (Manual Verification)
+
+This verifies that failed deliveries broadcast `retrying` events.
+
+1. On webhook.site, click **Edit** and set **Status Code** to `500`. Click **Save**.
+2. Open `docs/websocket-test.html`, confirm `connected`
+3. Create a notification:
+   ```bash
+   curl -s -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "Retry WS test"}'
+   ```
+4. Quickly paste the notification ID and click **Subscribe**
+
+**Expected events in the WebSocket client (in order):**
+- `notification.status.updated` with `status: "processing"` (green-yellow)
+- `notification.status.updated` with `status: "retrying"` (orange) with error message
+
+5. On webhook.site, change **Status Code** back to `202`. Click **Save**.
+6. Wait for the retry delay (~30-60s). More events should appear:
+   - `notification.status.updated` with `status: "processing"` (second attempt)
+   - `notification.status.updated` with `status: "delivered"` (green)
+
+**Remember** to set webhook.site back to `202` after testing.
+
+### Alternative: wscat (CLI)
 
 ```bash
 # Install wscat (requires Node.js)
@@ -587,7 +662,7 @@ Then create or process a notification via curl — you should see `notification.
 
 ## Database Verification
 
-### 36. Verify in Adminer
+### 40. Verify in Adminer
 
 Open http://localhost:8081, connect with Server `mysql`, User `laravel`, Password `secret`, Database `notification_db`:
 
