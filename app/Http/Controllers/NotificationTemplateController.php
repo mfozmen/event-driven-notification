@@ -69,7 +69,7 @@ class NotificationTemplateController extends Controller
         ],
         responses: [
             new OA\Response(response: 200, description: 'Template details'),
-            new OA\Response(response: 404, description: 'Template not found'),
+            new OA\Response(response: 404, description: 'Template not found'), // NOSONAR — Swagger annotations require literal strings
         ]
     )]
     public function show(NotificationTemplate $template): NotificationTemplateResource

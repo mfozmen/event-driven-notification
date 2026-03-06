@@ -100,7 +100,7 @@ class NotificationController extends Controller
         ],
         responses: [
             new OA\Response(response: 200, description: 'Notification details'),
-            new OA\Response(response: 404, description: 'Notification not found'),
+            new OA\Response(response: 404, description: 'Notification not found'), // NOSONAR — Swagger annotations require literal strings
         ]
     )]
     public function show(Notification $notification): NotificationResource
