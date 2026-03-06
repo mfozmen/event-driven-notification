@@ -117,6 +117,108 @@ test('permanently failed delivery fires NotificationStatusUpdated with status pe
     });
 });
 
+test('claiming a notification fires NotificationStatusUpdated with status processing', function () {
+    $processingBroadcast = false;
+    Event::listen(NotificationStatusUpdated::class, function (NotificationStatusUpdated $event) use (&$processingBroadcast) {
+        if ($event->notification->status === Status::PROCESSING) {
+            $processingBroadcast = true;
+        }
+    });
+
+    $provider = Mockery::mock(NotificationChannelInterface::class);
+    $provider->shouldReceive('send')->andReturn(DeliveryResult::successful('mock-msg-id'));
+
+    $factory = Mockery::mock(ChannelProviderFactory::class);
+    $factory->shouldReceive('resolve')->andReturn($provider);
+
+    $notification = Notification::factory()->create(['status' => Status::QUEUED]);
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
+
+    expect($processingBroadcast)->toBeTrue();
+});
+
+test('successful delivery broadcasts processing then delivered events in order', function () {
+    $dispatched = [];
+    Event::listen(NotificationStatusUpdated::class, function (NotificationStatusUpdated $event) use (&$dispatched) {
+        $dispatched[] = $event->notification->status;
+    });
+
+    $provider = Mockery::mock(NotificationChannelInterface::class);
+    $provider->shouldReceive('send')->andReturn(DeliveryResult::successful('mock-msg-id'));
+
+    $factory = Mockery::mock(ChannelProviderFactory::class);
+    $factory->shouldReceive('resolve')->andReturn($provider);
+
+    $notification = Notification::factory()->create(['status' => Status::QUEUED]);
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
+
+    expect($dispatched)->toHaveCount(2)
+        ->and($dispatched[0])->toBe(Status::PROCESSING)
+        ->and($dispatched[1])->toBe(Status::DELIVERED);
+});
+
+test('failed delivery broadcasts processing then retrying events in order', function () {
+    $dispatched = [];
+    Event::listen(NotificationStatusUpdated::class, function (NotificationStatusUpdated $event) use (&$dispatched) {
+        $dispatched[] = $event->notification->status;
+    });
+
+    $provider = Mockery::mock(NotificationChannelInterface::class);
+    $provider->shouldReceive('send')->andReturn(DeliveryResult::failure('Server error', true));
+
+    $factory = Mockery::mock(ChannelProviderFactory::class);
+    $factory->shouldReceive('resolve')->andReturn($provider);
+
+    $this->retryStrategy->shouldReceive('shouldRetry')->andReturn(true);
+    $this->retryStrategy->shouldReceive('calculateDelay')->andReturn(30);
+
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'max_attempts' => 3,
+    ]);
+
+    $job = Mockery::mock(SendNotificationJob::class, [$notification->id])
+        ->makePartial();
+    $job->shouldReceive('release')->with(30)->once();
+
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
+
+    expect($dispatched)->toHaveCount(2)
+        ->and($dispatched[0])->toBe(Status::PROCESSING)
+        ->and($dispatched[1])->toBe(Status::RETRYING);
+});
+
+test('permanently failed delivery broadcasts processing then permanently_failed events in order', function () {
+    $dispatched = [];
+    Event::listen(NotificationStatusUpdated::class, function (NotificationStatusUpdated $event) use (&$dispatched) {
+        $dispatched[] = $event->notification->status;
+    });
+
+    $provider = Mockery::mock(NotificationChannelInterface::class);
+    $provider->shouldReceive('send')->andReturn(DeliveryResult::failure('Bad request', false));
+
+    $factory = Mockery::mock(ChannelProviderFactory::class);
+    $factory->shouldReceive('resolve')->andReturn($provider);
+
+    $this->retryStrategy->shouldReceive('shouldRetry')->andReturn(false);
+
+    $notification = Notification::factory()->create([
+        'status' => Status::QUEUED,
+        'max_attempts' => 3,
+    ]);
+
+    $job = new SendNotificationJob($notification->id);
+    $job->handle($this->rateLimiter, $factory, $this->retryStrategy, $this->circuitBreaker);
+
+    expect($dispatched)->toHaveCount(2)
+        ->and($dispatched[0])->toBe(Status::PROCESSING)
+        ->and($dispatched[1])->toBe(Status::PERMANENTLY_FAILED);
+});
+
 test('queuing a notification fires NotificationStatusUpdated with status queued', function () {
     Event::fake(NotificationStatusUpdated::class);
 

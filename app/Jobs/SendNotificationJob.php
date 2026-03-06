@@ -52,6 +52,8 @@ class SendNotificationJob implements ShouldQueue
             return;
         }
 
+        $this->safeBroadcast($notification);
+
         $logger = app(NotificationLogger::class);
         $this->safeLog($logger, $notification, 'processing');
 
