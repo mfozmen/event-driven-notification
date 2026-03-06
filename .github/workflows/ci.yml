@@ -19,7 +19,7 @@ jobs:
         with:
           php-version: '8.4'
           extensions: pdo_sqlite, mbstring, xml, zip, pcntl
-          coverage: none
+          coverage: xdebug
 
       - name: Get Composer cache directory
         id: composer-cache
@@ -46,8 +46,14 @@ jobs:
       - name: Static analysis
         run: ./vendor/bin/phpstan analyse --memory-limit=512M
 
-      - name: Tests
-        run: php artisan test
+      - name: Tests with coverage
+        run: php artisan test --coverage-clover=coverage.xml --log-junit=test-results.xml
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
