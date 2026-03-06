@@ -358,7 +358,7 @@ Inside Docker prefix with `docker compose exec app`.
 
 ### Code Quality Metrics
 
-- **256 tests**, 931 assertions
+- **257 tests**, 936 assertions
 - **PHPStan Level 6**: 0 errors
 - **PHP Insights**: Code 93.3%, Complexity 94.9%, Architecture 81.3%, Style 92.7%
 - **0 known security vulnerabilities** (`composer audit`)
