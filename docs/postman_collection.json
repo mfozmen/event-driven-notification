@@ -119,22 +119,18 @@
 							{
 								"key": "Accept",
 								"value": "application/json"
-							},
-							{
-								"key": "Idempotency-Key",
-								"value": "unique-key-12345"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n\t\"recipient\": \"+905551234567\",\n\t\"channel\": \"sms\",\n\t\"content\": \"Idempotent notification — safe to retry\",\n\t\"priority\": \"high\"\n}"
+							"raw": "{\n\t\"recipient\": \"+905551234567\",\n\t\"channel\": \"sms\",\n\t\"content\": \"Idempotent notification — safe to retry\",\n\t\"priority\": \"high\",\n\t\"idempotency_key\": \"unique-key-12345\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/notifications",
 							"host": ["{{base_url}}"],
 							"path": ["api", "notifications"]
 						},
-						"description": "Create a notification with an idempotency key. Sending the same key again returns the original notification (200) instead of creating a duplicate (201)."
+						"description": "Create a notification with an idempotency key in the request body. Sending the same key again returns the original notification (200) instead of creating a duplicate (201)."
 					},
 					"response": []
 				},
@@ -249,7 +245,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/notifications?status=delivered&channel=sms&priority=high&date_from=2026-01-01&date_to=2026-12-31&per_page=10",
+							"raw": "{{base_url}}/api/notifications?status=delivered&channel=sms&date_from=2026-01-01&date_to=2026-12-31&per_page=10",
 							"host": ["{{base_url}}"],
 							"path": ["api", "notifications"],
 							"query": [
@@ -262,11 +258,6 @@
 									"key": "channel",
 									"value": "sms",
 									"description": "Filter by channel: sms, email, push"
-								},
-								{
-									"key": "priority",
-									"value": "high",
-									"description": "Filter by priority: high, normal, low"
 								},
 								{
 									"key": "date_from",
@@ -405,14 +396,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n\t\"name\": \"Welcome SMS\",\n\t\"body\": \"Hello {name}, your verification code is {code}.\",\n\t\"channel\": \"sms\"\n}"
+							"raw": "{\n\t\"name\": \"welcome-sms\",\n\t\"channel\": \"sms\",\n\t\"body_template\": \"Hello {{name}}, your verification code is {{code}}.\",\n\t\"variables\": [\"name\", \"code\"]\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/templates",
 							"host": ["{{base_url}}"],
 							"path": ["api", "templates"]
 						},
-						"description": "Create a new notification template. Use {variable_name} placeholders in the body for dynamic content."
+						"description": "Create a new notification template. Use {{variable_name}} placeholders in body_template. The variables array lists expected variable names."
 					},
 					"response": []
 				},
@@ -451,14 +442,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n\t\"name\": \"Updated Welcome SMS\",\n\t\"body\": \"Hi {name}, welcome aboard! Your code: {code}\",\n\t\"channel\": \"sms\"\n}"
+							"raw": "{\n\t\"name\": \"welcome-sms-v2\",\n\t\"channel\": \"sms\",\n\t\"body_template\": \"Hi {{name}}, welcome aboard! Your code: {{code}}\",\n\t\"variables\": [\"name\", \"code\"]\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/templates/{{template_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "templates", "{{template_id}}"]
 						},
-						"description": "Update an existing template by its UUID."
+						"description": "Update an existing template by its UUID. All fields are required."
 					},
 					"response": []
 				},
