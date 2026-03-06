@@ -23,7 +23,7 @@ x-app-environment: &app-environment
   LOG_CHANNEL: json
   LOG_LEVEL: debug
 
-  WEBHOOK_SITE_UUID: "cc03cf16-de43-4cd0-9696-da49e73a35f6"
+  WEBHOOK_SITE_UUID: "590c31c6-302e-4618-a465-6f21f547f07a"
   WEBHOOK_SITE_URL: https://webhook.site
 
   BROADCAST_CONNECTION: reverb
