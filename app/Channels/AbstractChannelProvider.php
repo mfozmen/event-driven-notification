@@ -25,10 +25,10 @@ abstract class AbstractChannelProvider implements NotificationChannelInterface
             return DeliveryResult::successful($response->json('messageId'));
         }
 
-        $isRetryable = $response->serverError();
+        $isRetryable = $response->serverError() || $response->status() === 429;
 
         return DeliveryResult::failure(
-            $response->json('error', 'Unknown error'),
+            $response->json('error', 'Provider returned HTTP '.$response->status()),
             $isRetryable,
         );
     }
