@@ -1,4 +1,5 @@
-![CI](https://github.com/{owner}/{repo}/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/mfozmen/event-driven-notification/actions/workflows/ci.yml/badge.svg)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=mfozmen_event-driven-notification&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mfozmen_event-driven-notification)
 
 # Event-Driven Notification System
 
