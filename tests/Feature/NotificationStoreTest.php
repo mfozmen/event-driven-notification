@@ -124,6 +124,33 @@ test('store returns existing notification when idempotency key is duplicate', fu
     expect($first->json('data.id'))->toBe($second->json('data.id'));
 });
 
+test('store returns 200 with same notification for duplicate idempotency key via API', function () {
+    $payload = [
+        'recipient' => '+905551234567',
+        'channel' => 'sms',
+        'content' => 'Idempotency full test',
+        'idempotency_key' => 'full-idem-test-key',
+    ];
+
+    // First request: 201 Created
+    $first = $this->postJson('/api/notifications', $payload);
+    $first->assertStatus(201);
+    $firstId = $first->json('data.id');
+
+    // Second request with same idempotency_key: 200, same id
+    $second = $this->postJson('/api/notifications', $payload);
+    $second->assertStatus(200);
+    expect($second->json('data.id'))->toBe($firstId);
+
+    // Third request with different idempotency_key: 201, different id
+    $payload['idempotency_key'] = 'different-idem-key';
+    $third = $this->postJson('/api/notifications', $payload);
+    $third->assertStatus(201);
+    expect($third->json('data.id'))->not->toBe($firstId);
+
+    $this->assertDatabaseCount('notifications', 2);
+});
+
 test('store defaults priority to normal when not provided', function () {
     $response = $this->postJson('/api/notifications', [
         'recipient' => '+905551234567',
