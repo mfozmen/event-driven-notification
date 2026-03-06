@@ -1,5 +1,6 @@
 ![CI](https://github.com/mfozmen/event-driven-notification/actions/workflows/ci.yml/badge.svg)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=mfozmen_event-driven-notification&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mfozmen_event-driven-notification)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=mfozmen_event-driven-notification&metric=coverage)](https://sonarcloud.io/summary/new_code?id=mfozmen_event-driven-notification)
 
 # Event-Driven Notification System
 
@@ -321,7 +322,20 @@ php artisan test --testsuite=Feature
 Inside Docker:
 
 ```bash
-docker-compose exec app php artisan test
+docker compose exec app php artisan test
+```
+
+Coverage report (requires Xdebug or PCOV):
+
+```bash
+# Coverage report
+php artisan test --coverage
+
+# Coverage with minimum threshold
+php artisan test --coverage --min=80
+
+# Inside Docker
+docker compose exec app php artisan test --coverage
 ```
 
 ---
