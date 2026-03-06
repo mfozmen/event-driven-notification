@@ -146,11 +146,15 @@ class NotificationService
 
     public function cancel(Notification $notification): Notification
     {
-        if (! $this->isCancellable($notification)) {
+        $affected = Notification::where('id', $notification->id)
+            ->whereIn('status', [Status::PENDING, Status::QUEUED, Status::RETRYING])
+            ->update(['status' => Status::CANCELLED]);
+
+        if ($affected === 0) {
             abort(409, 'Notification cannot be cancelled in its current status.');
         }
 
-        $notification->update(['status' => Status::CANCELLED]);
+        $notification->refresh();
 
         $this->logger->log($notification, 'cancelled');
 
@@ -161,15 +165,6 @@ class NotificationService
         }
 
         return $notification;
-    }
-
-    private function isCancellable(Notification $notification): bool
-    {
-        return in_array($notification->status, [
-            Status::PENDING,
-            Status::QUEUED,
-            Status::RETRYING,
-        ]);
     }
 
     /**

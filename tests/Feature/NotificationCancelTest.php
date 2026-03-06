@@ -56,3 +56,20 @@ test('cancel returns 404 for non-existent notification', function () {
 
     $response->assertStatus(404);
 });
+
+test('concurrent cancel requests only one succeeds', function () {
+    $notification = Notification::factory()->create(['status' => Status::PENDING]);
+
+    $first = $this->patchJson("/api/notifications/{$notification->id}/cancel");
+    $first->assertStatus(200)
+        ->assertJsonPath('data.status', 'cancelled');
+
+    $second = $this->patchJson("/api/notifications/{$notification->id}/cancel");
+    $second->assertStatus(409);
+
+    $this->assertDatabaseCount('notifications', 1);
+    $this->assertDatabaseHas('notifications', [
+        'id' => $notification->id,
+        'status' => 'cancelled',
+    ]);
+});
