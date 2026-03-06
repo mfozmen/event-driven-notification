@@ -9,7 +9,7 @@ use App\Http\Middleware\CorrelationIdMiddleware;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class)->withoutMiddleware(CorrelationIdMiddleware::class);
-Route::get('/metrics', MetricsController::class);
+Route::get('/metrics', MetricsController::class)->withoutMiddleware(CorrelationIdMiddleware::class);
 
 Route::get('/notifications', [NotificationController::class, 'index']);
 Route::post('/notifications', [NotificationController::class, 'store']);
