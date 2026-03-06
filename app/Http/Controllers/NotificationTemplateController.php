@@ -60,6 +60,7 @@ class NotificationTemplateController extends Controller
             ->setStatusCode(201);
     }
 
+    // NOSONAR — Swagger annotation paths are intentionally repeated for OpenAPI spec readability
     #[OA\Get(
         path: '/api/templates/{template}',
         summary: 'Get template by ID',

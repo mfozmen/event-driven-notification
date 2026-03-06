@@ -24,6 +24,7 @@ class SendNotificationJob implements ShouldQueue
         public string $notificationId,
     ) {}
 
+    // NOSONAR — Guard clauses with early returns are intentional for readability, each handles a distinct failure case
     public function handle(ChannelRateLimiter $rateLimiter, ChannelProviderFactory $factory, RetryStrategy $retryStrategy, CircuitBreaker $circuitBreaker): void
     {
         $notification = Notification::find($this->notificationId);
