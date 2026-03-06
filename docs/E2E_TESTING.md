@@ -545,7 +545,28 @@ docker compose ps reverb
 
 **Expected:** Status is `running` (or `Up`).
 
-**Note:** WebSocket functionality is tested via unit/feature tests (9 tests covering broadcast channel, payload, and event dispatching on all status transitions). Manual WebSocket testing requires a client like `wscat` or browser console:
+### 35b. WebSocket Test Client (Browser)
+
+A browser-based test client is included at `docs/websocket-test.html`. No install needed — just open the file.
+
+1. **Open** `docs/websocket-test.html` in your browser (double-click or `file://` URL)
+2. The client connects to `ws://localhost:8085` automatically (Reverb must be running)
+3. **Create a notification** via Postman or curl:
+   ```bash
+   curl -s -X POST http://localhost:8080/api/notifications \
+     -H "Content-Type: application/json" \
+     -d '{"recipient": "+905551234567", "channel": "sms", "content": "WebSocket test"}'
+   ```
+4. **Copy the notification ID** from the response
+5. **Paste the ID** into the test client input field and click **Subscribe**
+6. **Create another notification** or trigger a status change — watch the `notification.status.updated` events appear in real-time with timestamps and full payload
+
+**Testing status transitions live:**
+- Create a notification and subscribe to it immediately — you'll see: `queued` -> `processing` -> `delivered`
+- For retry flow: set webhook.site to 500, create a notification, subscribe — you'll see: `queued` -> `processing` -> `retrying` -> `processing` -> `delivered` (after fixing webhook.site back to 202)
+- For scheduled notification: subscribe first, then run `docker compose exec app php artisan notifications:process-scheduled` — watch the status transitions appear live
+
+**Alternative: wscat (CLI)**
 
 ```bash
 # Install wscat (requires Node.js)
