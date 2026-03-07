@@ -11,9 +11,13 @@ if [ ! -d /var/www/vendor ]; then
     composer dump-autoload --optimize
 fi
 
-php artisan migrate --force --no-interaction 2>/dev/null || true
-php artisan l5-swagger:generate 2>/dev/null || true
+if [ "$RUN_MIGRATIONS" = "true" ]; then
+    php artisan migrate --force --no-interaction 2>/dev/null || true
+    php artisan l5-swagger:generate 2>/dev/null || true
+fi
 
 chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+
+touch /tmp/app-ready
 
 exec "$@"
