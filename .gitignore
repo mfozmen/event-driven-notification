@@ -1,8 +1,5 @@
 *.log
-/docker/data/mysql/*
-/docker/data/redis/*
-!/docker/data/mysql/.gitkeep
-!/docker/data/redis/.gitkeep
+/docker/data/
 .DS_Store
 .env
 .env.backup
