@@ -6,6 +6,7 @@ if [ ! -f /var/www/.env ]; then
 fi
 
 if [ ! -d /var/www/vendor ]; then
+    mkdir -p /var/www/vendor
     COMPOSER_MEMORY_LIMIT=-1 composer install --no-scripts --no-interaction --prefer-dist
     composer dump-autoload --optimize
 fi
