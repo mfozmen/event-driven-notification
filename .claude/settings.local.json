@@ -45,7 +45,8 @@
       "Bash(DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan:*)",
       "Bash(composer audit:*)",
       "Bash(composer:*)",
-      "Bash(gh run:*)"
+      "Bash(gh run:*)",
+      "Bash(rm:*)"
     ]
   }
 }
