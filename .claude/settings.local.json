@@ -47,7 +47,8 @@
       "Bash(composer:*)",
       "Bash(gh run:*)",
       "Bash(rm:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(git clone:*)"
     ]
   }
 }
