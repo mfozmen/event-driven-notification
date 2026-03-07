@@ -59,11 +59,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "php-fpm -t"]
+      test: ["CMD-SHELL", "php-fpm -t && test -f /var/www/vendor/autoload.php"]
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 600s
     networks:
       - notification_network
 
@@ -129,9 +129,7 @@ services:
     environment:
       <<: *app-environment
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
+      app:
         condition: service_healthy
     networks:
       - notification_network
@@ -148,9 +146,7 @@ services:
     environment:
       <<: *app-environment
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
+      app:
         condition: service_healthy
     networks:
       - notification_network
@@ -171,9 +167,7 @@ services:
       REVERB_HOST: 0.0.0.0
       REVERB_PORT: 8085
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
+      app:
         condition: service_healthy
     networks:
       - notification_network
